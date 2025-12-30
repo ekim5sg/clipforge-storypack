@@ -219,52 +219,6 @@ function moveClip(index, direction) {
     renderClipList();
 }
 
-// ClipForge: Add clips button
-document.getElementById('add-clips').addEventListener('click', async () => {
-    console.log('Opening file picker...');
-    
-    try {
-        const filePaths = await window.__TAURI__.core.invoke('select_video_files');
-        
-        if (filePaths && filePaths.length > 0) {
-            // Get file sizes and durations for each clip
-            for (const path of filePaths) {
-                const clipData = {
-                    path: path,
-                    order: state.clips.length,
-                    size: null,
-                    duration: null
-                };
-                
-                // Get file size
-                try {
-                    clipData.size = await window.__TAURI__.core.invoke('get_file_size', { path });
-                } catch (error) {
-                    console.error('Error getting file size:', error);
-                }
-                
-                // Get video duration
-                try {
-                    clipData.duration = await window.__TAURI__.core.invoke('get_video_duration', { path });
-                } catch (error) {
-                    console.error('Error getting duration:', error);
-                }
-                
-                state.clips.push(clipData);
-            }
-            
-            renderClipList();
-            document.getElementById('concat-videos').disabled = state.clips.length < 2;
-            
-            console.log('Added clips:', filePaths);
-        } else {
-            console.log('No files selected');
-        }
-    } catch (error) {
-        console.error('Error selecting files:', error);
-    }
-});
-
 // ClipForge: Concatenate button
 document.getElementById('concat-videos').addEventListener('click', async () => {
     console.log('Starting concatenation...');
@@ -326,28 +280,127 @@ document.getElementById('concat-videos').addEventListener('click', async () => {
     }
 });
 
-// Storypack: File input handlers
-document.querySelectorAll('#storypack-form input[type="file"]').forEach(input => {
-    input.addEventListener('change', (e) => {
-        const fileNameSpan = e.target.nextElementSibling;
-        if (e.target.files.length > 0) {
-            const names = Array.from(e.target.files).map(f => f.name).join(', ');
-            fileNameSpan.textContent = names;
-            fileNameSpan.style.color = '#4fc3f7';
-        } else {
-            fileNameSpan.textContent = 'No file selected';
-            fileNameSpan.style.color = '#888';
-        }
+// Storypack: Track selected files
+const storyspackState = {
+    projectName: '',
+    cover: null,
+    prologue: null,
+    chapters: [],
+    epilogue: null,
+    credits: null,
+    narrationAudio: [],
+    themeAudio: null,
+    videoSource: null
+};
+
+// Storypack: File selection button handlers
+document.querySelectorAll('.file-select-btn').forEach(button => {
+    button.addEventListener('click', async () => {
+        const field = button.dataset.field;
+        const type = button.dataset.type;
+        const multiple = button.dataset.multiple === 'true';
         
-        // Enable generate button if cover is selected
-        const coverInput = document.querySelector('[data-field="cover"]');
-        document.getElementById('generate-website').disabled = coverInput.files.length === 0;
+        try {
+            let result;
+            
+            if (multiple) {
+                if (type === 'image') {
+                    result = await window.__TAURI__.core.invoke('select_image_files', {
+                        title: `Select ${field.charAt(0).toUpperCase() + field.slice(1)}`
+                    });
+                } else {
+                    result = await window.__TAURI__.core.invoke('select_audio_files', {
+                        title: `Select ${field.charAt(0).toUpperCase() + field.slice(1)}`
+                    });
+                }
+                
+                if (result && result.length > 0) {
+                    storyspackState[field] = result;
+                    const nameSpan = document.getElementById(`${field}-name`);
+                    const fileNames = result.map(p => p.split('\\').pop()).join(', ');
+                    nameSpan.textContent = fileNames;
+                    nameSpan.style.color = '#4fc3f7';
+                }
+            } else {
+                if (type === 'image') {
+                    result = await window.__TAURI__.core.invoke('select_image_file', {
+                        title: `Select ${field.charAt(0).toUpperCase() + field.slice(1)}`
+                    });
+                } else {
+                    result = await window.__TAURI__.core.invoke('select_audio_file', {
+                        title: `Select ${field.charAt(0).toUpperCase() + field.slice(1)}`
+                    });
+                }
+                
+                if (result) {
+                    storyspackState[field] = result;
+                    const nameSpan = document.getElementById(`${field}-name`);
+                    const fileName = result.split('\\').pop();
+                    nameSpan.textContent = fileName;
+                    nameSpan.style.color = '#4fc3f7';
+                }
+            }
+            
+            // Enable generate button if we have a cover
+            document.getElementById('generate-website').disabled = !storyspackState.cover;
+            
+        } catch (error) {
+            console.error('Error selecting file:', error);
+        }
     });
 });
 
 // Storypack: Generate website button
-document.getElementById('generate-website').addEventListener('click', () => {
-    console.log('Generate website clicked - will call Tauri command in Phase 3');
+document.getElementById('generate-website').addEventListener('click', async () => {
+    console.log('Generating storypack website...');
+    console.log('Storypack state:', storyspackState);
+    
+    try {
+        // Get project name
+        const projectName = prompt('Enter project name:', 'MyStorypack');
+        if (!projectName) return;
+        
+        // Select output folder
+        const outputFolder = await window.__TAURI__.core.invoke('select_output_folder');
+        if (!outputFolder) {
+            console.log('User cancelled folder selection');
+            return;
+        }
+        
+        // Prepare config
+        const config = {
+            project_name: projectName,
+            cover_image: storyspackState.cover,
+            prologue_image: storyspackState.prologue,
+            chapter_images: storyspackState.chapters || [],
+            epilogue_image: storyspackState.epilogue,
+            credits_image: storyspackState.credits,
+            narration_audio: storyspackState.narrationAudio || [],
+            theme_audio: storyspackState.themeAudio,
+            video_source: storyspackState.videoSource
+        };
+        
+        console.log('Generating with config:', config);
+        
+        const result = await window.__TAURI__.core.invoke('generate_storypack', {
+            config,
+            outputFolder
+        });
+        
+        console.log('Storypack generated:', result);
+        
+        await window.__TAURI__.core.invoke('confirm_dialog', {
+            title: 'Success!',
+            message: `Storypack created at:\n${result}`
+        });
+        
+    } catch (error) {
+        console.error('Error generating storypack:', error);
+        await window.__TAURI__.core.invoke('confirm_dialog', {
+            title: 'Error',
+            message: `Failed to generate storypack:\n${error}`
+        });
+    }
 });
 
 console.log('ClipForge Storypack initialized');

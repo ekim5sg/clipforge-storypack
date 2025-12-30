@@ -12,6 +12,15 @@ use commands::clipforge::{
     get_video_duration
 };
 
+use commands::storypack::{
+    select_output_folder,
+    generate_storypack,
+    select_image_file,
+    select_image_files,
+    select_audio_file,
+    select_audio_files
+};
+
 fn main() {
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
@@ -22,7 +31,13 @@ fn main() {
             concat_videos,
             get_file_size,
             confirm_dialog,
-            get_video_duration
+            get_video_duration,
+            select_output_folder,
+            generate_storypack,
+            select_image_file,
+            select_image_files,
+            select_audio_file,
+            select_audio_files
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

@@ -269,3 +269,21 @@ h2 {
     font-size: 12px;
     color: #888;
 }
+
+.file-select-btn {
+    background: #353535;
+    color: #e0e0e0;
+    border: 1px solid #555;
+    padding: 8px 16px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 13px;
+    transition: all 0.2s;
+    display: block;
+    margin-bottom: 8px;
+}
+
+.file-select-btn:hover {
+    background: #4d4d4d;
+    border-color: #4fc3f7;
+}
