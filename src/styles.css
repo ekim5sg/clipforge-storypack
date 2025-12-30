@@ -79,6 +79,23 @@ h2 {
     margin-bottom: 15px;
 }
 
+.clip-summary {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+    padding: 8px 12px;
+    background: #2d2d2d;
+    border-radius: 4px;
+    margin-bottom: 12px;
+    font-size: 13px;
+    color: #4fc3f7;
+    font-weight: 500;
+}
+
+.clip-summary .separator {
+    color: #555;
+}
+
 .empty-state {
     color: #666;
     text-align: center;
@@ -215,4 +232,40 @@ h2 {
 .info-text {
     color: #888;
     margin-bottom: 20px;
+}
+.icon-button {
+    background: #2d2d2d;
+    border: 1px solid #555;
+    color: #ccc;
+    width: 32px;
+    height: 32px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 14px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s;
+}
+
+.icon-button:hover:not(:disabled) {
+    background: #4d4d4d;
+    border-color: #4fc3f7;
+    color: #4fc3f7;
+}
+
+.icon-button:disabled {
+    opacity: 0.3;
+    cursor: not-allowed;
+}
+
+.icon-button.remove:hover:not(:disabled) {
+    background: #d32f2f;
+    border-color: #d32f2f;
+    color: white;
+}
+
+.clip-meta {
+    font-size: 12px;
+    color: #888;
 }

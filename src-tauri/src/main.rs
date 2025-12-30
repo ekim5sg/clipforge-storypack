@@ -3,7 +3,14 @@
 
 mod commands;
 
-use commands::clipforge::{select_video_files, select_output_path, concat_videos, get_file_size, confirm_dialog};
+use commands::clipforge::{
+    select_video_files, 
+    select_output_path, 
+    concat_videos, 
+    get_file_size, 
+    confirm_dialog,
+    get_video_duration
+};
 
 fn main() {
     tauri::Builder::default()
@@ -14,7 +21,8 @@ fn main() {
             select_output_path,
             concat_videos,
             get_file_size,
-            confirm_dialog
+            confirm_dialog,
+            get_video_duration
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

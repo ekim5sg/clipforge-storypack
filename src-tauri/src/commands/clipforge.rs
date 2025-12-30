@@ -44,20 +44,83 @@ pub async fn concat_videos(clips: Vec<String>, output_path: String) -> Result<St
     
     println!("Concatenating {} clips to {}", clips.len(), output_path);
     
-    // Create temporary concat file list
+    // Check audio streams for all clips
+    let mut audio_info: Vec<(String, bool)> = Vec::new();
+    
+    for clip in &clips {
+        let output = Command::new("ffprobe")
+            .args(&[
+                "-v", "error",
+                "-select_streams", "a:0",
+                "-show_entries", "stream=codec_type",
+                "-of", "csv=p=0",
+                clip
+            ])
+            .output()
+            .map_err(|e| format!("Failed to check audio: {}", e))?;
+        
+        let has_audio = !output.stdout.is_empty();
+        let filename = std::path::Path::new(clip)
+            .file_name()
+            .and_then(|n| n.to_str())
+            .unwrap_or(clip);
+        audio_info.push((filename.to_string(), has_audio));
+    }
+    
+    // Check if there's a problematic mix (no-audio before audio)
+    let has_audio_count = audio_info.iter().filter(|(_, has)| *has).count();
+    let no_audio_count = audio_info.len() - has_audio_count;
+    
+    if has_audio_count > 0 && no_audio_count > 0 {
+        // There's a mix - check if they're in the correct order
+        // Find the last file WITH audio and first file WITHOUT audio
+        let last_with_audio_idx = audio_info.iter()
+            .rposition(|(_, has)| *has);
+        let first_without_audio_idx = audio_info.iter()
+            .position(|(_, has)| !*has);
+        
+        if let (Some(last_with), Some(first_without)) = (last_with_audio_idx, first_without_audio_idx) {
+            if first_without < last_with {
+                // Problem: no-audio file appears before an audio file
+                let mut error_msg = String::from("⚠️ Audio stream mismatch detected!\n\n");
+                error_msg.push_str("Some clips have audio and some don't:\n\n");
+                
+                error_msg.push_str("WITH audio:\n");
+                for (name, has_audio) in &audio_info {
+                    if *has_audio {
+                        error_msg.push_str(&format!("  ✓ {}\n", name));
+                    }
+                }
+                
+                error_msg.push_str("\nWITHOUT audio:\n");
+                for (name, has_audio) in &audio_info {
+                    if !*has_audio {
+                        error_msg.push_str(&format!("  ✗ {}\n", name));
+                    }
+                }
+                
+                error_msg.push_str("\n💡 Solution: Place ALL clips WITH audio first, then clips without audio.\n");
+                error_msg.push_str("Use the ▲▼ buttons to reorder.");
+                
+                return Err(error_msg);
+            }
+        }
+        
+        println!("Mixed audio streams, but correctly ordered - proceeding");
+    }
+    
+    // All compatible or correctly ordered - proceed with fast concat
     let temp_list = std::env::temp_dir().join("clipforge_concat_list.txt");
     let mut file = File::create(&temp_list)
         .map_err(|e| format!("Failed to create temp file: {}", e))?;
     
-    // Write file list in FFmpeg concat format
     for clip in &clips {
         writeln!(file, "file '{}'", clip.replace("\\", "/"))
             .map_err(|e| format!("Failed to write to temp file: {}", e))?;
     }
     
-    drop(file); // Close the file
+    drop(file);
     
-    // Call FFmpeg
     let output = Command::new("ffmpeg")
         .args(&[
             "-f", "concat",
@@ -69,7 +132,6 @@ pub async fn concat_videos(clips: Vec<String>, output_path: String) -> Result<St
         .output()
         .map_err(|e| format!("Failed to execute FFmpeg: {}", e))?;
     
-    // Clean up temp file
     let _ = std::fs::remove_file(&temp_list);
     
     if output.status.success() {
@@ -99,4 +161,29 @@ pub async fn confirm_dialog(app: AppHandle, title: String, message: String) -> R
         .blocking_show();
     
     Ok(answer)
+}
+
+#[tauri::command]
+pub async fn get_video_duration(path: String) -> Result<f64, String> {
+    use std::process::Command;
+    
+    let output = Command::new("ffprobe")
+        .args(&[
+            "-v", "error",
+            "-show_entries", "format=duration",
+            "-of", "default=noprint_wrappers=1:nokey=1",
+            &path
+        ])
+        .output()
+        .map_err(|e| format!("Failed to execute ffprobe: {}", e))?;
+    
+    if output.status.success() {
+        let duration_str = String::from_utf8_lossy(&output.stdout);
+        let duration: f64 = duration_str.trim()
+            .parse()
+            .map_err(|e| format!("Failed to parse duration: {}", e))?;
+        Ok(duration)
+    } else {
+        Err("Failed to get video duration".to_string())
+    }
 }

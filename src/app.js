@@ -37,24 +37,39 @@ document.getElementById('add-clips').addEventListener('click', async () => {
         const filePaths = await window.__TAURI__.core.invoke('select_video_files');
         
         if (filePaths && filePaths.length > 0) {
-            // Get file sizes for each clip
-            for (const path of filePaths) {
-                try {
-                    const size = await window.__TAURI__.core.invoke('get_file_size', { path });
-                    state.clips.push({
-                        path: path,
-                        order: state.clips.length,
-                        size: size
-                    });
-                } catch (error) {
-                    console.error('Error getting file size:', error);
-                    state.clips.push({
-                        path: path,
-                        order: state.clips.length,
-                        size: null
-                    });
+            // Process all clips in parallel instead of sequentially
+            const clipPromises = filePaths.map(async (path) => {
+                const clipData = {
+                    path: path,
+                    order: state.clips.length,
+                    size: null,
+                    duration: null
+                };
+                
+                // Get file size and duration in parallel
+                const [sizeResult, durationResult] = await Promise.allSettled([
+                    window.__TAURI__.core.invoke('get_file_size', { path }),
+                    window.__TAURI__.core.invoke('get_video_duration', { path })
+                ]);
+                
+                if (sizeResult.status === 'fulfilled') {
+                    clipData.size = sizeResult.value;
+                } else {
+                    console.error('Error getting file size for', path, ':', sizeResult.reason);
                 }
-            }
+                
+                if (durationResult.status === 'fulfilled') {
+                    clipData.duration = durationResult.value;
+                } else {
+                    console.error('Error getting duration for', path, ':', durationResult.reason);
+                }
+                
+                return clipData;
+            });
+            
+            // Wait for all clips to be processed
+            const newClips = await Promise.all(clipPromises);
+            state.clips.push(...newClips);
             
             renderClipList();
             document.getElementById('concat-videos').disabled = state.clips.length < 2;
@@ -98,9 +113,28 @@ function renderClipList() {
         return;
     }
     
-    listEl.innerHTML = state.clips.map((clip, idx) => {
+    // Calculate totals
+    const totalBytes = state.clips.reduce((sum, clip) => sum + (clip.size || 0), 0);
+    const totalSize = formatFileSize(totalBytes);
+    const totalSeconds = state.clips.reduce((sum, clip) => sum + (clip.duration || 0), 0);
+    const totalDuration = formatDuration(totalSeconds);
+    
+    // Summary header
+    const summaryHTML = `
+        <div class="clip-summary">
+            <span>${state.clips.length} clips</span>
+            <span class="separator">•</span>
+            <span>${totalDuration}</span>
+            <span class="separator">•</span>
+            <span>${totalSize}</span>
+        </div>
+    `;
+    
+    // Clip items
+    const itemsHTML = state.clips.map((clip, idx) => {
         const fileName = clip.path.split('\\').pop();
         const fileSize = clip.size ? formatFileSize(clip.size) : '---';
+        const duration = clip.duration ? formatDuration(clip.duration) : '--:--';
         
         return `
             <div class="clip-item">
@@ -108,17 +142,19 @@ function renderClipList() {
                     <span class="clip-order">${idx + 1}.</span>
                     <div class="clip-details">
                         <span class="clip-name">${fileName}</span>
-                        <span class="clip-size">${fileSize}</span>
+                        <span class="clip-meta">${duration} • ${fileSize}</span>
                     </div>
                 </div>
                 <div class="clip-actions">
-                    <button class="icon-button move-up" data-index="${idx}" title="Move up">▲</button>
-                    <button class="icon-button move-down" data-index="${idx}" title="Move down">▼</button>
+                    <button class="icon-button move-up" data-index="${idx}" title="Move up" ${idx === 0 ? 'disabled' : ''}>▲</button>
+                    <button class="icon-button move-down" data-index="${idx}" title="Move down" ${idx === state.clips.length - 1 ? 'disabled' : ''}>▼</button>
                     <button class="icon-button remove" data-index="${idx}" title="Remove">✕</button>
                 </div>
             </div>
         `;
     }).join('');
+    
+    listEl.innerHTML = summaryHTML + itemsHTML;
     
     // Add event listeners for action buttons
     document.querySelectorAll('.clip-item .remove').forEach(btn => {
@@ -141,6 +177,21 @@ function renderClipList() {
             moveClip(idx, 1);
         });
     });
+}
+
+// Format duration from seconds to MM:SS or HH:MM:SS
+function formatDuration(seconds) {
+    if (!seconds || seconds < 0) return '--:--';
+    
+    const hours = Math.floor(seconds / 3600);
+    const minutes = Math.floor((seconds % 3600) / 60);
+    const secs = Math.floor(seconds % 60);
+    
+    if (hours > 0) {
+        return `${hours}:${String(minutes).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+    } else {
+        return `${minutes}:${String(secs).padStart(2, '0')}`;
+    }
 }
 
 // Format file size for display
@@ -167,6 +218,52 @@ function moveClip(index, direction) {
     [state.clips[index], state.clips[newIndex]] = [state.clips[newIndex], state.clips[index]];
     renderClipList();
 }
+
+// ClipForge: Add clips button
+document.getElementById('add-clips').addEventListener('click', async () => {
+    console.log('Opening file picker...');
+    
+    try {
+        const filePaths = await window.__TAURI__.core.invoke('select_video_files');
+        
+        if (filePaths && filePaths.length > 0) {
+            // Get file sizes and durations for each clip
+            for (const path of filePaths) {
+                const clipData = {
+                    path: path,
+                    order: state.clips.length,
+                    size: null,
+                    duration: null
+                };
+                
+                // Get file size
+                try {
+                    clipData.size = await window.__TAURI__.core.invoke('get_file_size', { path });
+                } catch (error) {
+                    console.error('Error getting file size:', error);
+                }
+                
+                // Get video duration
+                try {
+                    clipData.duration = await window.__TAURI__.core.invoke('get_video_duration', { path });
+                } catch (error) {
+                    console.error('Error getting duration:', error);
+                }
+                
+                state.clips.push(clipData);
+            }
+            
+            renderClipList();
+            document.getElementById('concat-videos').disabled = state.clips.length < 2;
+            
+            console.log('Added clips:', filePaths);
+        } else {
+            console.log('No files selected');
+        }
+    } catch (error) {
+        console.error('Error selecting files:', error);
+    }
+});
 
 // ClipForge: Concatenate button
 document.getElementById('concat-videos').addEventListener('click', async () => {
@@ -200,11 +297,16 @@ document.getElementById('concat-videos').addEventListener('click', async () => {
         btn.textContent = 'Concatenate Videos';
         btn.disabled = false;
         
-        // Show success (using console instead of alert to avoid permission error)
+        // Show success
         console.log('✅ Video created successfully!');
         
         // Optional: Clear the clip list
-        if (confirm('Video created successfully! Clear the clip list?')) {
+        const shouldClear = await window.__TAURI__.core.invoke('confirm_dialog', {
+            title: 'Success',
+            message: 'Video created successfully! Clear the clip list?'
+        });
+        
+        if (shouldClear) {
             state.clips = [];
             renderClipList();
             btn.disabled = true;
@@ -215,6 +317,12 @@ document.getElementById('concat-videos').addEventListener('click', async () => {
         const btn = document.getElementById('concat-videos');
         btn.textContent = 'Concatenate Videos';
         btn.disabled = false;
+        
+        // Show error dialog with the detailed message
+        await window.__TAURI__.core.invoke('confirm_dialog', {
+            title: 'Concatenation Error',
+            message: error.toString()
+        });
     }
 });
 
