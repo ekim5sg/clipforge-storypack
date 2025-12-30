@@ -1,0 +1,71 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ClipForge Storypack</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div id="app">
+        <nav class="tab-nav">
+            <button class="tab-button active" data-tab="clipforge">ClipForge</button>
+            <button class="tab-button" data-tab="storypack">Storypack</button>
+            <button class="tab-button" data-tab="publish">Publish</button>
+        </nav>
+
+        <main class="tab-container">
+            <!-- ClipForge Tab -->
+            <div id="clipforge-tab" class="tab-content active">
+                <h2>Video Clips</h2>
+                <div class="clip-list" id="clip-list">
+                    <p class="empty-state">No clips added yet</p>
+                </div>
+                <button id="add-clips" class="primary-button">Add Clips</button>
+                <button id="concat-videos" class="secondary-button" disabled>Concatenate Videos</button>
+            </div>
+
+            <!-- Storypack Tab -->
+            <div id="storypack-tab" class="tab-content">
+                <h2>Storypack Generator</h2>
+                <form id="storypack-form" class="storypack-form">
+                    <div class="form-group">
+                        <label>Cover Image</label>
+                        <input type="file" accept="image/*" data-field="cover">
+                        <span class="file-name">No file selected</span>
+                    </div>
+                    <div class="form-group">
+                        <label>Prologue Image</label>
+                        <input type="file" accept="image/*" data-field="prologue">
+                        <span class="file-name">No file selected</span>
+                    </div>
+                    <div class="form-group">
+                        <label>Chapter Images (1-6)</label>
+                        <input type="file" accept="image/*" multiple data-field="chapters">
+                        <span class="file-name">No files selected</span>
+                    </div>
+                    <div class="form-group">
+                        <label>Epilogue Image</label>
+                        <input type="file" accept="image/*" data-field="epilogue">
+                        <span class="file-name">No file selected</span>
+                    </div>
+                    <div class="form-group">
+                        <label>Credits Image</label>
+                        <input type="file" accept="image/*" data-field="credits">
+                        <span class="file-name">No file selected</span>
+                    </div>
+                    <button type="button" id="generate-website" class="primary-button" disabled>Generate Website</button>
+                </form>
+            </div>
+
+            <!-- Publish Tab -->
+            <div id="publish-tab" class="tab-content">
+                <h2>Publish</h2>
+                <p class="info-text">Combine ClipForge output with Storypack and create a distributable package.</p>
+                <button class="primary-button" disabled>Generate Final Package</button>
+            </div>
+        </main>
+    </div>
+    <script src="app.js"></script>
+</body>
+</html>

@@ -1,0 +1,13 @@
+﻿<!DOCTYPE html>
+<html>
+<head>
+    <title>Test</title>
+</head>
+<body>
+    <h1 style="color: red; font-size: 48px;">HELLO WORLD</h1>
+    <script>
+        console.log('JavaScript is working!');
+        alert('If you see this, HTML and JS are loading!');
+    </script>
+</body>
+</html>
