@@ -30,19 +30,35 @@ document.querySelectorAll('.tab-button').forEach(button => {
 });
 
 // ClipForge: Add clips button
-document.getElementById('add-clips').addEventListener('click', () => {
-    console.log('Add clips clicked - will open file picker in Phase 2');
+document.getElementById('add-clips').addEventListener('click', async () => {
+    console.log('Opening file picker...');
     
-    // Mock data for Phase 1
-    const mockClip = {
-        path: `C:\\Users\\Videos\\clip_${state.clips.length + 1}.mp4`,
-        order: state.clips.length
-    };
-    state.clips.push(mockClip);
-    renderClipList();
-    
-    // Enable concatenate button if we have clips
-    document.getElementById('concat-videos').disabled = state.clips.length < 2;
+    try {
+        // Call Tauri command to open file dialog
+        const filePaths = await window.__TAURI__.core.invoke('select_video_files');
+        
+        if (filePaths && filePaths.length > 0) {
+            // Add selected files to state
+            filePaths.forEach(path => {
+                state.clips.push({
+                    path: path,
+                    order: state.clips.length
+                });
+            });
+            
+            renderClipList();
+            
+            // Enable concatenate button if we have 2+ clips
+            document.getElementById('concat-videos').disabled = state.clips.length < 2;
+            
+            console.log('Added clips:', filePaths);
+        } else {
+            console.log('No files selected');
+        }
+    } catch (error) {
+        console.error('Error selecting files:', error);
+        alert('Error opening file picker: ' + error);
+    }
 });
 
 // Render clip list
@@ -65,10 +81,53 @@ function renderClipList() {
 }
 
 // ClipForge: Concatenate button
-document.getElementById('concat-videos').addEventListener('click', () => {
-    console.log('Concatenate clicked - will call Tauri command in Phase 2');
+document.getElementById('concat-videos').addEventListener('click', async () => {
+    console.log('Starting concatenation...');
     console.log('Clips to concat:', state.clips);
-    alert('Phase 2 will implement video concatenation');
+    
+    try {
+        // Ask user where to save the output
+        const outputPath = await window.__TAURI__.core.invoke('select_output_path');
+        
+        if (!outputPath) {
+            console.log('User cancelled save dialog');
+            return;
+        }
+        
+        console.log('Saving to:', outputPath);
+        
+        // Disable button during processing
+        const btn = document.getElementById('concat-videos');
+        btn.disabled = true;
+        btn.textContent = 'Processing...';
+        
+        // Call FFmpeg concatenation
+        const clipPaths = state.clips.map(c => c.path);
+        const result = await window.__TAURI__.core.invoke('concat_videos', {
+            clips: clipPaths,
+            outputPath: outputPath
+        });
+        
+        console.log('Success:', result);
+        btn.textContent = 'Concatenate Videos';
+        btn.disabled = false;
+        
+        // Show success (using console instead of alert to avoid permission error)
+        console.log('✅ Video created successfully!');
+        
+        // Optional: Clear the clip list
+        if (confirm('Video created successfully! Clear the clip list?')) {
+            state.clips = [];
+            renderClipList();
+            btn.disabled = true;
+        }
+        
+    } catch (error) {
+        console.error('Error concatenating videos:', error);
+        const btn = document.getElementById('concat-videos');
+        btn.textContent = 'Concatenate Videos';
+        btn.disabled = false;
+    }
 });
 
 // Storypack: File input handlers
