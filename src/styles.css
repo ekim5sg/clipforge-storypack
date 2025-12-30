@@ -95,6 +95,12 @@ h2 {
     align-items: center;
 }
 
+.clip-info {
+    display: flex;
+    align-items: center;
+    flex: 1;
+}
+
 .clip-name {
     font-size: 14px;
 }
@@ -103,6 +109,38 @@ h2 {
     color: #4fc3f7;
     font-weight: bold;
     margin-right: 10px;
+}
+
+.clip-actions {
+    display: flex;
+    gap: 8px;
+}
+
+.icon-button {
+    background: #2d2d2d;
+    border: 1px solid #555;
+    color: #ccc;
+    width: 32px;
+    height: 32px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 14px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s;
+}
+
+.icon-button:hover {
+    background: #4d4d4d;
+    border-color: #4fc3f7;
+    color: #4fc3f7;
+}
+
+.icon-button.remove:hover {
+    background: #d32f2f;
+    border-color: #d32f2f;
+    color: white;
 }
 
 .primary-button {

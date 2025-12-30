@@ -34,21 +34,29 @@ document.getElementById('add-clips').addEventListener('click', async () => {
     console.log('Opening file picker...');
     
     try {
-        // Call Tauri command to open file dialog
         const filePaths = await window.__TAURI__.core.invoke('select_video_files');
         
         if (filePaths && filePaths.length > 0) {
-            // Add selected files to state
-            filePaths.forEach(path => {
-                state.clips.push({
-                    path: path,
-                    order: state.clips.length
-                });
-            });
+            // Get file sizes for each clip
+            for (const path of filePaths) {
+                try {
+                    const size = await window.__TAURI__.core.invoke('get_file_size', { path });
+                    state.clips.push({
+                        path: path,
+                        order: state.clips.length,
+                        size: size
+                    });
+                } catch (error) {
+                    console.error('Error getting file size:', error);
+                    state.clips.push({
+                        path: path,
+                        order: state.clips.length,
+                        size: null
+                    });
+                }
+            }
             
             renderClipList();
-            
-            // Enable concatenate button if we have 2+ clips
             document.getElementById('concat-videos').disabled = state.clips.length < 2;
             
             console.log('Added clips:', filePaths);
@@ -57,7 +65,27 @@ document.getElementById('add-clips').addEventListener('click', async () => {
         }
     } catch (error) {
         console.error('Error selecting files:', error);
-        alert('Error opening file picker: ' + error);
+    }
+});
+
+// ClipForge: Clear all clips button
+document.getElementById('clear-clips').addEventListener('click', async () => {
+    if (state.clips.length === 0) return;
+    
+    try {
+        const confirmed = await window.__TAURI__.core.invoke('confirm_dialog', {
+            title: 'Clear All Clips',
+            message: `Clear all ${state.clips.length} clips?`
+        });
+        
+        if (confirmed) {
+            state.clips = [];
+            renderClipList();
+            document.getElementById('concat-videos').disabled = true;
+            console.log('Cleared all clips');
+        }
+    } catch (error) {
+        console.error('Error showing confirmation:', error);
     }
 });
 
@@ -70,14 +98,74 @@ function renderClipList() {
         return;
     }
     
-    listEl.innerHTML = state.clips.map((clip, idx) => `
-        <div class="clip-item">
-            <div>
-                <span class="clip-order">${idx + 1}.</span>
-                <span class="clip-name">${clip.path.split('\\').pop()}</span>
+    listEl.innerHTML = state.clips.map((clip, idx) => {
+        const fileName = clip.path.split('\\').pop();
+        const fileSize = clip.size ? formatFileSize(clip.size) : '---';
+        
+        return `
+            <div class="clip-item">
+                <div class="clip-info">
+                    <span class="clip-order">${idx + 1}.</span>
+                    <div class="clip-details">
+                        <span class="clip-name">${fileName}</span>
+                        <span class="clip-size">${fileSize}</span>
+                    </div>
+                </div>
+                <div class="clip-actions">
+                    <button class="icon-button move-up" data-index="${idx}" title="Move up">▲</button>
+                    <button class="icon-button move-down" data-index="${idx}" title="Move down">▼</button>
+                    <button class="icon-button remove" data-index="${idx}" title="Remove">✕</button>
+                </div>
             </div>
-        </div>
-    `).join('');
+        `;
+    }).join('');
+    
+    // Add event listeners for action buttons
+    document.querySelectorAll('.clip-item .remove').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            const idx = parseInt(e.target.dataset.index);
+            removeClip(idx);
+        });
+    });
+    
+    document.querySelectorAll('.clip-item .move-up').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            const idx = parseInt(e.target.dataset.index);
+            moveClip(idx, -1);
+        });
+    });
+    
+    document.querySelectorAll('.clip-item .move-down').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            const idx = parseInt(e.target.dataset.index);
+            moveClip(idx, 1);
+        });
+    });
+}
+
+// Format file size for display
+function formatFileSize(bytes) {
+    if (bytes < 1024) return bytes + ' B';
+    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+    if (bytes < 1024 * 1024 * 1024) return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+    return (bytes / (1024 * 1024 * 1024)).toFixed(2) + ' GB';
+}
+
+// Remove a clip
+function removeClip(index) {
+    state.clips.splice(index, 1);
+    renderClipList();
+    document.getElementById('concat-videos').disabled = state.clips.length < 2;
+}
+
+// Move a clip up or down
+function moveClip(index, direction) {
+    const newIndex = index + direction;
+    if (newIndex < 0 || newIndex >= state.clips.length) return;
+    
+    // Swap clips
+    [state.clips[index], state.clips[newIndex]] = [state.clips[newIndex], state.clips[index]];
+    renderClipList();
 }
 
 // ClipForge: Concatenate button
@@ -152,7 +240,6 @@ document.querySelectorAll('#storypack-form input[type="file"]').forEach(input =>
 // Storypack: Generate website button
 document.getElementById('generate-website').addEventListener('click', () => {
     console.log('Generate website clicked - will call Tauri command in Phase 3');
-    alert('Phase 3 will implement website generation');
 });
 
 console.log('ClipForge Storypack initialized');

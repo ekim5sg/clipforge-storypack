@@ -73,9 +73,30 @@ pub async fn concat_videos(clips: Vec<String>, output_path: String) -> Result<St
     let _ = std::fs::remove_file(&temp_list);
     
     if output.status.success() {
-        Ok(format!("Successfully created: {}", output_path))
+        return Ok(format!("Successfully created: {}", output_path));
     } else {
         let error_msg = String::from_utf8_lossy(&output.stderr);
-        Err(format!("FFmpeg error: {}", error_msg))
+        return Err(format!("FFmpeg error: {}", error_msg));
     }
+}
+
+#[tauri::command]
+pub async fn get_file_size(path: String) -> Result<u64, String> {
+    use std::fs;
+    
+    fs::metadata(&path)
+        .map(|m| m.len())
+        .map_err(|e| format!("Failed to get file size: {}", e))
+}
+
+#[tauri::command]
+pub async fn confirm_dialog(app: AppHandle, title: String, message: String) -> Result<bool, String> {
+    use tauri_plugin_dialog::DialogExt;
+    
+    let answer = app.dialog()
+        .message(message)
+        .title(title)
+        .blocking_show();
+    
+    Ok(answer)
 }
