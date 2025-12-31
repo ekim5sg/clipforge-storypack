@@ -312,6 +312,9 @@ document.querySelectorAll('.file-select-btn').forEach(button => {
         const type = button.dataset.type;
         const multiple = button.dataset.multiple === 'true';
         
+        // Skip if no field (e.g., publish tab folder selector)
+        if (!field) return;
+        
         try {
             let result;
             
@@ -541,6 +544,201 @@ document.getElementById('generate-website').addEventListener('click', async () =
         await window.__TAURI__.core.invoke('confirm_dialog', {
             title: 'Error',
             message: `Failed to generate storypack:\n${error}`
+        });
+    }
+});
+
+// Publish: Load saved credentials or use defaults
+const savedFtpConfig = localStorage.getItem('ftpConfig');
+const defaultFtpConfig = savedFtpConfig ? JSON.parse(savedFtpConfig) : {
+    host: '',
+    username: '',
+    path: ''
+};
+
+const publishState = {
+    storyspackFolder: null,
+    ftpHost: defaultFtpConfig.host,
+    ftpUsername: defaultFtpConfig.username,
+    ftpPassword: '', // Never save password
+    ftpPath: defaultFtpConfig.path
+};
+
+// Populate form with saved values
+document.getElementById('ftp-host').value = publishState.ftpHost;
+document.getElementById('ftp-username').value = publishState.ftpUsername;
+document.getElementById('ftp-path').value = publishState.ftpPath;
+
+// Focus password field if we have saved credentials
+if (publishState.ftpHost && publishState.ftpUsername) {
+    setTimeout(() => {
+        const passwordField = document.getElementById('ftp-password');
+        if (passwordField) {
+            passwordField.focus();
+        }
+    }, 100);
+}
+
+function saveFtpCredentials() {
+    const config = {
+        host: publishState.ftpHost,
+        username: publishState.ftpUsername,
+        path: publishState.ftpPath
+        // Note: We never save the password
+    };
+    localStorage.setItem('ftpConfig', JSON.stringify(config));
+    console.log('FTP credentials saved');
+}
+
+// Select storypack folder
+document.getElementById('select-storypack-folder').addEventListener('click', async () => {
+    try {
+        const folder = await window.__TAURI__.core.invoke('select_storypack_folder');
+        
+        if (folder) {
+            publishState.storyspackFolder = folder;
+            const folderName = folder.split('\\').pop();
+            document.getElementById('storypack-folder-name').textContent = folderName;
+            document.getElementById('storypack-folder-name').style.color = '#4fc3f7';
+            updateUploadButton();
+        }
+    } catch (error) {
+        console.error('Error selecting folder:', error);
+    }
+});
+
+// FTP input handlers
+document.getElementById('ftp-host').addEventListener('input', (e) => {
+    publishState.ftpHost = e.target.value.trim();
+    updateUploadButton();
+    saveFtpCredentials();
+});
+
+document.getElementById('ftp-username').addEventListener('input', (e) => {
+    publishState.ftpUsername = e.target.value.trim();
+    updateUploadButton();
+    saveFtpCredentials();
+});
+
+document.getElementById('ftp-password').addEventListener('input', (e) => {
+    publishState.ftpPassword = e.target.value.trim();
+    updateUploadButton();
+    // Don't save password
+});
+
+document.getElementById('ftp-path').addEventListener('input', (e) => {
+    publishState.ftpPath = e.target.value.trim();
+    saveFtpCredentials();
+});
+
+function updateUploadButton() {
+    const hasFolder = publishState.storyspackFolder !== null;
+    const hasHost = publishState.ftpHost.length > 0;
+    const hasUsername = publishState.ftpUsername.length > 0;
+    const hasPassword = publishState.ftpPassword.length > 0;
+    
+    document.getElementById('upload-ftp').disabled = !(hasFolder && hasHost && hasUsername && hasPassword);
+}
+
+// Test FTP connection
+document.getElementById('test-ftp').addEventListener('click', async () => {
+    if (!publishState.ftpHost || !publishState.ftpUsername || !publishState.ftpPassword) {
+        await window.__TAURI__.core.invoke('confirm_dialog', {
+            title: 'Missing Information',
+            message: 'Please enter FTP host, username, and password.'
+        });
+        return;
+    }
+    
+    const btn = document.getElementById('test-ftp');
+    btn.disabled = true;
+    btn.textContent = 'Testing...';
+    
+    try {
+        const config = {
+            host: publishState.ftpHost,
+            username: publishState.ftpUsername,
+            password: publishState.ftpPassword,
+            remote_path: publishState.ftpPath || null
+        };
+        
+        const result = await window.__TAURI__.core.invoke('test_ftp_connection', { config });
+        
+        await window.__TAURI__.core.invoke('confirm_dialog', {
+            title: 'Success',
+            message: result
+        });
+        
+    } catch (error) {
+        await window.__TAURI__.core.invoke('confirm_dialog', {
+            title: 'Connection Failed',
+            message: error.toString()
+        });
+    } finally {
+        btn.disabled = false;
+        btn.textContent = 'Test Connection';
+    }
+});
+
+// Set up progress listener once when page loads
+let progressUnlisten = null;
+
+// Initialize progress listener
+(async () => {
+    progressUnlisten = await window.__TAURI__.event.listen('upload-progress', (event) => {
+        const progress = event.payload;
+        console.log('Progress update:', progress);
+        document.getElementById('progress-fill').style.width = progress + '%';
+        document.getElementById('progress-text').textContent = progress + '%';
+    });
+})();
+
+// Upload to FTP
+document.getElementById('upload-ftp').addEventListener('click', async () => {
+    console.log('Starting FTP upload...');
+    
+    try {
+        // Reset progress
+        document.getElementById('progress-fill').style.width = '0%';
+        document.getElementById('progress-text').textContent = '0%';
+        
+        // Show upload status
+        document.getElementById('publish-form').style.display = 'none';
+        document.getElementById('upload-status').style.display = 'block';
+        document.getElementById('upload-message').textContent = 'Uploading to server...';
+        
+        const config = {
+            host: publishState.ftpHost,
+            username: publishState.ftpUsername,
+            password: publishState.ftpPassword,
+            remote_path: publishState.ftpPath || null
+        };
+        
+        const result = await window.__TAURI__.core.invoke('upload_to_ftp', {
+            config,
+            localFolder: publishState.storyspackFolder
+        });
+        
+        // Hide upload status
+        document.getElementById('upload-status').style.display = 'none';
+        document.getElementById('publish-form').style.display = 'block';
+        
+        // Show success
+        await window.__TAURI__.core.invoke('confirm_dialog', {
+            title: 'Upload Complete',
+            message: result
+        });
+        
+    } catch (error) {
+        console.error('Upload error:', error);
+        
+        // Hide upload status
+        document.getElementById('upload-status').style.display = 'none';
+        document.getElementById('publish-form').style.display = 'block';
+        
+        await window.__TAURI__.core.invoke('confirm_dialog', {
+            title: 'Upload Failed',
+            message: error.toString()
         });
     }
 });

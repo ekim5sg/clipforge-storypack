@@ -117,12 +117,56 @@
                 </div>
             </div>
 
-            <!-- Publish Tab -->
-            <div id="publish-tab" class="tab-content">
-                <h2>Publish</h2>
-                <p class="info-text">Combine ClipForge output with Storypack and create a distributable package.</p>
-                <button class="primary-button" disabled>Generate Final Package</button>
-            </div>
+			<!-- Publish Tab -->
+			<div id="publish-tab" class="tab-content">
+				<h2>Publish to Web Server</h2>
+				<p class="info-text">Upload your Storypack to a web server via FTP</p>
+				
+				<form id="publish-form" class="storypack-form">
+					<div class="form-group">
+						<label>Storypack Folder *</label>
+						<button type="button" id="select-storypack-folder" class="secondary-button">Select Storypack Folder</button>
+						<span class="file-name" id="storypack-folder-name">No folder selected</span>
+					</div>
+					
+					<div class="form-group">
+						<label>FTP Host *</label>
+						<input type="text" id="ftp-host" class="text-input" placeholder="ftp.example.com" required />
+					</div>
+					
+					<div class="form-group">
+						<label>FTP Username *</label>
+						<input type="text" id="ftp-username" class="text-input" placeholder="username" required />
+					</div>
+					
+					<div class="form-group">
+						<label>FTP Password *</label>
+						<input type="password" id="ftp-password" class="text-input" placeholder="password" required />
+					</div>
+					
+					<div class="form-group">
+						<label>Remote Path (Optional)</label>
+						<input type="text" id="ftp-path" class="text-input" placeholder="/public_html/storypack" />
+						<p class="helper-text">Leave empty to upload to root directory</p>
+					</div>
+					
+					<div class="form-actions">
+						<button type="button" id="test-ftp" class="secondary-button">Test Connection</button>
+						<button type="button" id="upload-ftp" class="primary-button" disabled>Upload to Server</button>
+					</div>
+				</form>
+				
+				<div id="upload-status" class="generation-status" style="display: none;">
+					<div class="spinner"></div>
+					<p id="upload-message">Uploading to server...</p>
+					<div id="upload-progress" style="margin-top: 15px;">
+						<div class="progress-bar">
+							<div class="progress-fill" id="progress-fill"></div>
+						</div>
+						<p id="progress-text" style="color: #888; font-size: 12px; margin-top: 8px;">0%</p>
+					</div>
+				</div>
+			</div>
         </main>
     </div>
     <script src="app.js"></script>

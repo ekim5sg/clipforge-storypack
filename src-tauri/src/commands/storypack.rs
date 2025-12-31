@@ -1,4 +1,4 @@
-use tauri::AppHandle;
+use tauri::{AppHandle};
 use std::path::Path;
 use std::fs;
 
@@ -416,7 +416,7 @@ fn create_html_template(config: &StoryspackConfig) -> String {
         </div>
     </div>
     
-    <script>
+	<script>
         let currentPage = 0;
         const pages = document.querySelectorAll('.page');
         const totalPages = pages.length;
@@ -428,6 +428,39 @@ fn create_html_template(config: &StoryspackConfig) -> String {
         const themeMusic = document.getElementById('theme-music');
         
         let musicPlaying = false;
+        let currentlyPlayingAudio = null;
+        
+        // Check if storypack has any narration at all
+        const hasAnyNarration = Array.from(pages).some(page => 
+            page.querySelector('.page-audio') !== null
+        );
+        
+        function updateNarrationButton() {{
+            if (!hasAnyNarration) {{
+                playNarrationBtn.style.display = 'none';
+                return;
+            }}
+            
+            // Always show button if storypack has narration
+            playNarrationBtn.style.display = 'block';
+            
+            // Find any currently playing audio
+            let playingAudio = null;
+            pages.forEach(page => {{
+                const audio = page.querySelector('.page-audio');
+                if (audio && !audio.paused) {{
+                    playingAudio = audio;
+                }}
+            }});
+            
+            if (playingAudio) {{
+                playNarrationBtn.textContent = '⏸️ Narration';
+                currentlyPlayingAudio = playingAudio;
+            }} else {{
+                playNarrationBtn.textContent = '🔊 Narration';
+                currentlyPlayingAudio = null;
+            }}
+        }}
         
         function showPage(index) {{
             pages.forEach((page, i) => {{
@@ -439,16 +472,54 @@ fn create_html_template(config: &StoryspackConfig) -> String {
             nextBtn.disabled = index === totalPages - 1;
             pageIndicator.textContent = `Page ${{index + 1}} of ${{totalPages}}`;
             
-            // Check if current page has audio
-            const hasAudio = pages[index].querySelector('.page-audio');
-            playNarrationBtn.style.display = hasAudio ? 'block' : 'none';
+            updateNarrationButton();
         }}
         
-        function playNarration() {{
-            const currentAudio = pages[currentPage].querySelector('.page-audio');
-            if (currentAudio) {{
-                currentAudio.currentTime = 0;
-                currentAudio.play();
+        function toggleNarration() {{
+            // If something is playing, pause it
+            if (currentlyPlayingAudio && !currentlyPlayingAudio.paused) {{
+                currentlyPlayingAudio.pause();
+                playNarrationBtn.textContent = '🔊 Narration';
+                currentlyPlayingAudio = null;
+                return;
+            }}
+            
+            // Find next page with audio, starting from current page
+            let audioToPlay = null;
+            let searchIndex = currentPage;
+            
+            // First try current page
+            audioToPlay = pages[currentPage].querySelector('.page-audio');
+            
+            // If current page has no audio, find the next page with audio
+            if (!audioToPlay) {{
+                for (let i = 1; i <= totalPages; i++) {{
+                    const nextIndex = (currentPage + i) % totalPages;
+                    audioToPlay = pages[nextIndex].querySelector('.page-audio');
+                    if (audioToPlay) {{
+                        searchIndex = nextIndex;
+                        break;
+                    }}
+                }}
+            }}
+            
+            if (!audioToPlay) return;
+            
+            // Jump to that page and play
+            if (searchIndex !== currentPage) {{
+                showPage(searchIndex);
+            }}
+            
+            audioToPlay.currentTime = 0;
+            const playPromise = audioToPlay.play();
+            
+            if (playPromise !== undefined) {{
+                playPromise.then(() => {{
+                    currentlyPlayingAudio = audioToPlay;
+                    playNarrationBtn.textContent = '⏸️ Narration';
+                }}).catch(error => {{
+                    console.log('Play interrupted:', error);
+                }});
             }}
         }}
         
@@ -478,8 +549,19 @@ fn create_html_template(config: &StoryspackConfig) -> String {
             }}
         }});
         
-        playNarrationBtn.addEventListener('click', playNarration);
+        playNarrationBtn.addEventListener('click', toggleNarration);
         toggleMusicBtn.addEventListener('click', toggleMusic);
+        
+        // Only listen for 'ended' event to clean up
+        pages.forEach(page => {{
+            const audio = page.querySelector('.page-audio');
+            if (audio) {{
+                audio.addEventListener('ended', () => {{
+                    currentlyPlayingAudio = null;
+                    updateNarrationButton();
+                }});
+            }}
+        }});
         
         // Hide music button if no theme music
         if (!themeMusic) {{
@@ -494,7 +576,7 @@ fn create_html_template(config: &StoryspackConfig) -> String {
                 showPage(currentPage + 1);
             }} else if (e.key === ' ') {{
                 e.preventDefault();
-                playNarration();
+                toggleNarration();
             }}
         }});
         
