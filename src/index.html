@@ -60,6 +60,46 @@
 						<span class="file-name" id="credits-name">No file selected</span>
 					</div>
 					
+					<!-- After Credits Image section, add these: -->
+					<div class="form-group">
+						<label>Narration Audio (Optional)</label>
+						<button type="button" class="file-select-btn" data-field="narrationAudio" data-type="audio" data-multiple="true">Select Narration Files</button>
+						<span class="file-name" id="narrationAudio-name">No files selected</span>
+						<p class="helper-text">One audio file per page (cover, prologue, chapters, epilogue, credits)</p>
+					</div>
+
+					<div class="form-group">
+						<label>Background Music (Optional)</label>
+						<button type="button" class="file-select-btn" data-field="themeAudio" data-type="audio" data-multiple="false">Select Theme Music</button>
+						<span class="file-name" id="themeAudio-name">No file selected</span>
+						<p class="helper-text">Background music that loops throughout</p>
+					</div>
+
+					<div class="form-group">
+						<label>Video (Optional)</label>
+						<div class="video-options">
+							<select id="video-type" class="video-type-select">
+								<option value="none">No Video</option>
+								<option value="youtube">YouTube Video</option>
+								<option value="hosted">Hosted URL</option>
+								<option value="local">Local MP4 File</option>
+							</select>
+							
+							<div id="youtube-input" class="video-input" style="display: none;">
+								<input type="text" id="youtube-id" placeholder="Enter YouTube Video ID (e.g., dQw4w9WgXcQ)" />
+							</div>
+							
+							<div id="hosted-input" class="video-input" style="display: none;">
+								<input type="text" id="hosted-url" placeholder="Enter video URL (e.g., https://example.com/video.mp4)" />
+							</div>
+							
+							<div id="local-input" class="video-input" style="display: none;">
+								<button type="button" class="file-select-btn" id="select-local-video">Select Local MP4</button>
+								<span class="file-name" id="local-video-name">No file selected</span>
+							</div>
+						</div>
+					</div>
+					
 					<button type="button" id="generate-website" class="primary-button" disabled>Generate Website</button>
 				</form>
 			</div>

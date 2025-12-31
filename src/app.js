@@ -350,6 +350,80 @@ document.querySelectorAll('.file-select-btn').forEach(button => {
     });
 });
 
+// Video source handling
+const videoTypeSelect = document.getElementById('video-type');
+const youtubeInput = document.getElementById('youtube-input');
+const hostedInput = document.getElementById('hosted-input');
+const localInput = document.getElementById('local-input');
+const selectLocalVideoBtn = document.getElementById('select-local-video');
+
+videoTypeSelect.addEventListener('change', (e) => {
+    // Hide all inputs
+    youtubeInput.style.display = 'none';
+    hostedInput.style.display = 'none';
+    localInput.style.display = 'none';
+    
+    // Show selected input
+    const type = e.target.value;
+    if (type === 'youtube') {
+        youtubeInput.style.display = 'block';
+    } else if (type === 'hosted') {
+        hostedInput.style.display = 'block';
+    } else if (type === 'local') {
+        localInput.style.display = 'block';
+    }
+    
+    // Clear video source
+    storyspackState.videoSource = null;
+});
+
+// YouTube ID input
+document.getElementById('youtube-id').addEventListener('input', (e) => {
+    const videoId = e.target.value.trim();
+    if (videoId) {
+        storyspackState.videoSource = {
+            type: 'YouTube',
+            value: { video_id: videoId }
+        };
+    } else {
+        storyspackState.videoSource = null;
+    }
+});
+
+// Hosted URL input
+document.getElementById('hosted-url').addEventListener('input', (e) => {
+    const url = e.target.value.trim();
+    if (url) {
+        storyspackState.videoSource = {
+            type: 'Hosted',
+            value: { url: url }
+        };
+    } else {
+        storyspackState.videoSource = null;
+    }
+});
+
+// Local video file selection
+selectLocalVideoBtn.addEventListener('click', async () => {
+    try {
+        const result = await window.__TAURI__.core.invoke('select_video_files');
+        
+        if (result && result.length > 0) {
+            const videoPath = result[0];
+            storyspackState.videoSource = {
+                type: 'Local',
+                value: { path: videoPath }
+            };
+            
+            const fileName = videoPath.split('\\').pop();
+            document.getElementById('local-video-name').textContent = fileName;
+            document.getElementById('local-video-name').style.color = '#4fc3f7';
+        }
+    } catch (error) {
+        console.error('Error selecting video:', error);
+    }
+});
+
 // Storypack: Generate website button
 document.getElementById('generate-website').addEventListener('click', async () => {
     console.log('Generating storypack website...');

@@ -218,6 +218,7 @@ fn generate_css(project_path: &Path) -> Result<(), String> {
 
 fn create_html_template(config: &StoryspackConfig) -> String {
     let mut pages = Vec::new();
+    let mut audio_index = 0;
     
     // Helper function to get file extension
     fn get_extension(path: &str) -> String {
@@ -228,63 +229,134 @@ fn create_html_template(config: &StoryspackConfig) -> String {
             .to_string()
     }
     
+    // Helper to get audio element for current page
+    let get_audio = |idx: &mut usize| -> String {
+        if *idx < config.narration_audio.len() {
+            let audio_path = &config.narration_audio[*idx];
+            let ext = get_extension(audio_path);
+            *idx += 1;
+            format!(r#"<audio class="page-audio" src="assets/audio/narration{}.{}" preload="auto"></audio>"#, *idx, ext)
+        } else {
+            String::new()
+        }
+    };
+    
     // Cover page
     if let Some(cover) = &config.cover_image {
         let ext = get_extension(cover);
+        let audio = get_audio(&mut audio_index);
         pages.push(format!(r#"
         <div class="page" data-page="cover">
             <div class="page-content">
                 <img src="assets/images/cover.{}" alt="Cover" class="page-image" />
+                {}
             </div>
-        </div>"#, ext));
+        </div>"#, ext, audio));
     }
     
     // Prologue page
     if let Some(prologue) = &config.prologue_image {
         let ext = get_extension(prologue);
+        let audio = get_audio(&mut audio_index);
         pages.push(format!(r#"
         <div class="page" data-page="prologue">
             <div class="page-content">
                 <img src="assets/images/prologue.{}" alt="Prologue" class="page-image" />
+                {}
             </div>
-        </div>"#, ext));
+        </div>"#, ext, audio));
     }
     
     // Chapter pages
     for (i, chapter) in config.chapter_images.iter().enumerate() {
         let ext = get_extension(chapter);
+        let audio = get_audio(&mut audio_index);
         let chapter_html = format!(r#"
         <div class="page" data-page="chapter{}">
             <div class="page-content">
                 <img src="assets/images/chapter{}.{}" alt="Chapter {}" class="page-image" />
+                {}
             </div>
-        </div>"#, i + 1, i + 1, ext, i + 1);
+        </div>"#, i + 1, i + 1, ext, i + 1, audio);
         pages.push(chapter_html);
     }
     
     // Epilogue page
     if let Some(epilogue) = &config.epilogue_image {
         let ext = get_extension(epilogue);
+        let audio = get_audio(&mut audio_index);
         pages.push(format!(r#"
         <div class="page" data-page="epilogue">
             <div class="page-content">
                 <img src="assets/images/epilogue.{}" alt="Epilogue" class="page-image" />
+                {}
             </div>
-        </div>"#, ext));
+        </div>"#, ext, audio));
     }
     
     // Credits page
     if let Some(credits) = &config.credits_image {
         let ext = get_extension(credits);
+        let audio = get_audio(&mut audio_index);
         pages.push(format!(r#"
         <div class="page" data-page="credits">
             <div class="page-content">
                 <img src="assets/images/credits.{}" alt="Credits" class="page-image" />
+                {}
             </div>
-        </div>"#, ext));
+        </div>"#, ext, audio));
     }
     
     let pages_html = pages.join("\n");
+    
+    // Background music element
+    let theme_audio = if let Some(theme) = &config.theme_audio {
+        let ext = get_extension(theme);
+        format!(r#"<audio id="theme-music" src="assets/audio/theme.{}" loop></audio>"#, ext)
+    } else {
+        String::new()
+    };
+    
+    // Video element
+    let video_html = match &config.video_source {
+        Some(VideoSource::YouTube { video_id }) => {
+            format!(r#"
+            <div class="video-container">
+                <iframe 
+                    src="https://www.youtube.com/embed/{}" 
+                    frameborder="0" 
+                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" 
+                    allowfullscreen>
+                </iframe>
+            </div>"#, video_id)
+        },
+        Some(VideoSource::Hosted { url }) => {
+            format!(r#"
+            <div class="video-container">
+                <video controls>
+                    <source src="{}" type="video/mp4">
+                    Your browser does not support the video tag.
+                </video>
+            </div>"#, url)
+        },
+        Some(VideoSource::Local { path: _ }) => {
+            let ext = config.video_source.as_ref()
+                .and_then(|v| match v {
+                    VideoSource::Local { path } => Some(get_extension(path)),
+                    _ => None
+                })
+                .unwrap_or_else(|| "mp4".to_string());
+            
+            format!(r#"
+            <div class="video-container">
+                <video controls>
+                    <source src="assets/video/video.{}" type="video/mp4">
+                    Your browser does not support the video tag.
+                </video>
+            </div>"#, ext)
+        },
+        None => String::new()
+    };
     
     format!(r#"<!DOCTYPE html>
 <html lang="en">
@@ -295,7 +367,10 @@ fn create_html_template(config: &StoryspackConfig) -> String {
     <link rel="stylesheet" href="styles.css">
 </head>
 <body>
+    {}
+    
     <div class="book-container">
+        {}
         <div class="pages-wrapper">
             {}
         </div>
@@ -304,6 +379,11 @@ fn create_html_template(config: &StoryspackConfig) -> String {
             <button id="prev-btn" class="nav-btn" disabled>◀ Previous</button>
             <span id="page-indicator">Page 1</span>
             <button id="next-btn" class="nav-btn">Next ▶</button>
+        </div>
+        
+        <div class="audio-controls">
+            <button id="play-narration" class="audio-btn" title="Play narration">🔊 Narration</button>
+            <button id="toggle-music" class="audio-btn" title="Toggle background music">🎵 Music</button>
         </div>
     </div>
     
@@ -314,6 +394,11 @@ fn create_html_template(config: &StoryspackConfig) -> String {
         const prevBtn = document.getElementById('prev-btn');
         const nextBtn = document.getElementById('next-btn');
         const pageIndicator = document.getElementById('page-indicator');
+        const playNarrationBtn = document.getElementById('play-narration');
+        const toggleMusicBtn = document.getElementById('toggle-music');
+        const themeMusic = document.getElementById('theme-music');
+        
+        let musicPlaying = false;
         
         function showPage(index) {{
             pages.forEach((page, i) => {{
@@ -324,6 +409,32 @@ fn create_html_template(config: &StoryspackConfig) -> String {
             prevBtn.disabled = index === 0;
             nextBtn.disabled = index === totalPages - 1;
             pageIndicator.textContent = `Page ${{index + 1}} of ${{totalPages}}`;
+            
+            // Check if current page has audio
+            const hasAudio = pages[index].querySelector('.page-audio');
+            playNarrationBtn.style.display = hasAudio ? 'block' : 'none';
+        }}
+        
+        function playNarration() {{
+            const currentAudio = pages[currentPage].querySelector('.page-audio');
+            if (currentAudio) {{
+                currentAudio.currentTime = 0;
+                currentAudio.play();
+            }}
+        }}
+        
+        function toggleMusic() {{
+            if (!themeMusic) return;
+            
+            if (musicPlaying) {{
+                themeMusic.pause();
+                toggleMusicBtn.textContent = '🎵 Music';
+                musicPlaying = false;
+            }} else {{
+                themeMusic.play();
+                toggleMusicBtn.textContent = '⏸️ Music';
+                musicPlaying = true;
+            }}
         }}
         
         prevBtn.addEventListener('click', () => {{
@@ -338,12 +449,23 @@ fn create_html_template(config: &StoryspackConfig) -> String {
             }}
         }});
         
+        playNarrationBtn.addEventListener('click', playNarration);
+        toggleMusicBtn.addEventListener('click', toggleMusic);
+        
+        // Hide music button if no theme music
+        if (!themeMusic) {{
+            toggleMusicBtn.style.display = 'none';
+        }}
+        
         // Keyboard navigation
         document.addEventListener('keydown', (e) => {{
             if (e.key === 'ArrowLeft' && currentPage > 0) {{
                 showPage(currentPage - 1);
             }} else if (e.key === 'ArrowRight' && currentPage < totalPages - 1) {{
                 showPage(currentPage + 1);
+            }} else if (e.key === ' ') {{
+                e.preventDefault();
+                playNarration();
             }}
         }});
         
@@ -351,7 +473,7 @@ fn create_html_template(config: &StoryspackConfig) -> String {
         showPage(0);
     </script>
 </body>
-</html>"#, config.project_name, pages_html)
+</html>"#, config.project_name, theme_audio, video_html, pages_html)
 }
 
 fn create_css_template() -> String {
@@ -380,6 +502,22 @@ body {
     overflow: hidden;
 }
 
+.video-container {
+    position: relative;
+    width: 100%;
+    padding-top: 56.25%;
+    background: #000;
+}
+
+.video-container iframe,
+.video-container video {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+}
+
 .pages-wrapper {
     position: relative;
     width: 100%;
@@ -403,6 +541,7 @@ body {
     justify-content: center;
     align-items: center;
     padding: 20px;
+    flex-direction: column;
 }
 
 .page-image {
@@ -410,6 +549,10 @@ body {
     max-height: 600px;
     object-fit: contain;
     border-radius: 4px;
+}
+
+.page-audio {
+    display: none;
 }
 
 .navigation {
@@ -451,6 +594,32 @@ body {
     font-weight: 500;
 }
 
+.audio-controls {
+    display: flex;
+    justify-content: center;
+    gap: 12px;
+    padding: 15px;
+    background: #f8f8f8;
+    border-top: 1px solid #e0e0e0;
+}
+
+.audio-btn {
+    background: #764ba2;
+    color: white;
+    border: none;
+    padding: 10px 20px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 13px;
+    font-weight: 500;
+    transition: all 0.3s ease;
+}
+
+.audio-btn:hover {
+    background: #5e3882;
+    transform: translateY(-2px);
+}
+
 @media (max-width: 768px) {
     .book-container {
         border-radius: 0;
@@ -478,6 +647,16 @@ body {
     }
     
     #page-indicator {
+        font-size: 12px;
+    }
+    
+    .audio-controls {
+        padding: 12px;
+        gap: 8px;
+    }
+    
+    .audio-btn {
+        padding: 8px 16px;
         font-size: 12px;
     }
 }"#.to_string()

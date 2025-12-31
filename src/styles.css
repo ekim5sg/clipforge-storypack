@@ -287,3 +287,50 @@ h2 {
     background: #4d4d4d;
     border-color: #4fc3f7;
 }
+
+.helper-text {
+    font-size: 11px;
+    color: #888;
+    margin-top: 4px;
+    font-style: italic;
+}
+
+.video-options {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.video-type-select {
+    padding: 10px;
+    border: 1px solid #555;
+    border-radius: 4px;
+    background: #353535;
+    color: #e0e0e0;
+    font-size: 13px;
+    cursor: pointer;
+}
+
+.video-type-select:focus {
+    outline: none;
+    border-color: #4fc3f7;
+}
+
+.video-input input[type="text"] {
+    width: 100%;
+    padding: 10px;
+    border: 1px solid #555;
+    border-radius: 4px;
+    background: #353535;
+    color: #e0e0e0;
+    font-size: 13px;
+}
+
+.video-input input[type="text"]:focus {
+    outline: none;
+    border-color: #4fc3f7;
+}
+
+.video-input input[type="text"]::placeholder {
+    color: #888;
+}
