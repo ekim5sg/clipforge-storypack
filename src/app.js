@@ -293,6 +293,18 @@ const storyspackState = {
     videoSource: null
 };
 
+// Project name validation
+const projectNameInput = document.getElementById('project-name');
+projectNameInput.addEventListener('input', () => {
+    updateGenerateButton();
+});
+
+function updateGenerateButton() {
+    const hasProjectName = projectNameInput.value.trim().length > 0;
+    const hasCover = storyspackState.cover !== null;
+    document.getElementById('generate-website').disabled = !(hasProjectName && hasCover);
+}
+
 // Storypack: File selection button handlers
 document.querySelectorAll('.file-select-btn').forEach(button => {
     button.addEventListener('click', async () => {
@@ -341,8 +353,8 @@ document.querySelectorAll('.file-select-btn').forEach(button => {
                 }
             }
             
-            // Enable generate button if we have a cover
-            document.getElementById('generate-website').disabled = !storyspackState.cover;
+            // Update generate button state
+            updateGenerateButton();
             
         } catch (error) {
             console.error('Error selecting file:', error);
@@ -424,22 +436,63 @@ selectLocalVideoBtn.addEventListener('click', async () => {
     }
 });
 
+// Clear Storypack form
+document.getElementById('clear-storypack').addEventListener('click', () => {
+    // Reset all fields
+    projectNameInput.value = '';
+    storyspackState.cover = null;
+    storyspackState.prologue = null;
+    storyspackState.chapters = [];
+    storyspackState.epilogue = null;
+    storyspackState.credits = null;
+    storyspackState.narrationAudio = [];
+    storyspackState.themeAudio = null;
+    storyspackState.videoSource = null;
+    
+    // Reset UI
+    document.querySelectorAll('.file-name').forEach(span => {
+        span.textContent = span.id.includes('chapters') || span.id.includes('narrationAudio') ? 'No files selected' : 'No file selected';
+        span.style.color = '#888';
+    });
+    
+    videoTypeSelect.value = 'none';
+    youtubeInput.style.display = 'none';
+    hostedInput.style.display = 'none';
+    localInput.style.display = 'none';
+    document.getElementById('youtube-id').value = '';
+    document.getElementById('hosted-url').value = '';
+    
+    updateGenerateButton();
+    
+    console.log('Storypack form cleared');
+});
+
 // Storypack: Generate website button
 document.getElementById('generate-website').addEventListener('click', async () => {
+    const projectName = projectNameInput.value.trim();
+    
+    if (!projectName) {
+        await window.__TAURI__.core.invoke('confirm_dialog', {
+            title: 'Missing Information',
+            message: 'Please enter a project name.'
+        });
+        return;
+    }
+    
     console.log('Generating storypack website...');
     console.log('Storypack state:', storyspackState);
     
     try {
-        // Get project name
-        const projectName = prompt('Enter project name:', 'MyStorypack');
-        if (!projectName) return;
-        
         // Select output folder
         const outputFolder = await window.__TAURI__.core.invoke('select_output_folder');
         if (!outputFolder) {
             console.log('User cancelled folder selection');
             return;
         }
+        
+        // Show loading
+        document.getElementById('storypack-form').style.display = 'none';
+        document.getElementById('generation-status').style.display = 'block';
         
         // Prepare config
         const config = {
@@ -463,13 +516,28 @@ document.getElementById('generate-website').addEventListener('click', async () =
         
         console.log('Storypack generated:', result);
         
-        await window.__TAURI__.core.invoke('confirm_dialog', {
+        // Hide loading
+        document.getElementById('generation-status').style.display = 'none';
+        document.getElementById('storypack-form').style.display = 'block';
+        
+        // Show success with option to open folder
+        const shouldOpen = await window.__TAURI__.core.invoke('confirm_dialog', {
             title: 'Success!',
-            message: `Storypack created at:\n${result}`
+            message: `Storypack created successfully!\n\nLocation: ${result}\n\nWould you like to open the folder?`
         });
+        
+        if (shouldOpen) {
+            // Open folder in file explorer
+            await window.__TAURI__.core.invoke('open_folder', { path: result });
+        }
         
     } catch (error) {
         console.error('Error generating storypack:', error);
+        
+        // Hide loading
+        document.getElementById('generation-status').style.display = 'none';
+        document.getElementById('storypack-form').style.display = 'block';
+        
         await window.__TAURI__.core.invoke('confirm_dialog', {
             title: 'Error',
             message: `Failed to generate storypack:\n${error}`

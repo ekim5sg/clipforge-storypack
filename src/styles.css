@@ -334,3 +334,56 @@ h2 {
 .video-input input[type="text"]::placeholder {
     color: #888;
 }
+
+.text-input {
+    width: 100%;
+    padding: 10px;
+    border: 1px solid #555;
+    border-radius: 4px;
+    background: #353535;
+    color: #e0e0e0;
+    font-size: 13px;
+}
+
+.text-input:focus {
+    outline: none;
+    border-color: #4fc3f7;
+}
+
+.text-input::placeholder {
+    color: #888;
+}
+
+.form-actions {
+    display: flex;
+    gap: 12px;
+    margin-top: 20px;
+}
+
+.generation-status {
+    text-align: center;
+    padding: 30px;
+    background: #2d2d2d;
+    border-radius: 8px;
+    margin-top: 20px;
+}
+
+.spinner {
+    border: 4px solid #555;
+    border-top: 4px solid #4fc3f7;
+    border-radius: 50%;
+    width: 40px;
+    height: 40px;
+    animation: spin 1s linear infinite;
+    margin: 0 auto 15px;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+.generation-status p {
+    color: #4fc3f7;
+    font-size: 14px;
+}

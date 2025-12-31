@@ -21,88 +21,101 @@
                 <div class="clip-list" id="clip-list">
                     <p class="empty-state">No clips added yet</p>
                 </div>
-				<button id="add-clips" class="primary-button">Add Clips</button>
-				<button id="clear-clips" class="secondary-button">Clear All</button>
-				<button id="concat-videos" class="secondary-button" disabled>Concatenate Videos</button>
+                <button id="add-clips" class="primary-button">Add Clips</button>
+                <button id="clear-clips" class="secondary-button">Clear All</button>
+                <button id="concat-videos" class="secondary-button" disabled>Concatenate Videos</button>
             </div>
 
-			<!-- Storypack Tab -->
-			<div id="storypack-tab" class="tab-content">
-				<h2>Storypack Generator</h2>
-				<form id="storypack-form" class="storypack-form">
-					<div class="form-group">
-						<label>Cover Image *</label>
-						<button type="button" class="file-select-btn" data-field="cover" data-type="image" data-multiple="false">Select Cover Image</button>
-						<span class="file-name" id="cover-name">No file selected</span>
-					</div>
-					
-					<div class="form-group">
-						<label>Prologue Image</label>
-						<button type="button" class="file-select-btn" data-field="prologue" data-type="image" data-multiple="false">Select Prologue Image</button>
-						<span class="file-name" id="prologue-name">No file selected</span>
-					</div>
-					
-					<div class="form-group">
-						<label>Chapter Images (1-6)</label>
-						<button type="button" class="file-select-btn" data-field="chapters" data-type="image" data-multiple="true">Select Chapter Images</button>
-						<span class="file-name" id="chapters-name">No files selected</span>
-					</div>
-					
-					<div class="form-group">
-						<label>Epilogue Image</label>
-						<button type="button" class="file-select-btn" data-field="epilogue" data-type="image" data-multiple="false">Select Epilogue Image</button>
-						<span class="file-name" id="epilogue-name">No file selected</span>
-					</div>
-					
-					<div class="form-group">
-						<label>Credits Image</label>
-						<button type="button" class="file-select-btn" data-field="credits" data-type="image" data-multiple="false">Select Credits Image</button>
-						<span class="file-name" id="credits-name">No file selected</span>
-					</div>
-					
-					<!-- After Credits Image section, add these: -->
-					<div class="form-group">
-						<label>Narration Audio (Optional)</label>
-						<button type="button" class="file-select-btn" data-field="narrationAudio" data-type="audio" data-multiple="true">Select Narration Files</button>
-						<span class="file-name" id="narrationAudio-name">No files selected</span>
-						<p class="helper-text">One audio file per page (cover, prologue, chapters, epilogue, credits)</p>
-					</div>
+            <!-- Storypack Tab -->
+            <div id="storypack-tab" class="tab-content">
+                <h2>Storypack Generator</h2>
+                <form id="storypack-form" class="storypack-form">
+                    
+                    <div class="form-group">
+                        <label>Project Name *</label>
+                        <input type="text" id="project-name" class="text-input" placeholder="e.g., MyStorybook" required />
+                    </div>
+                    
+                    <div class="form-group">
+                        <label>Cover Image *</label>
+                        <button type="button" class="file-select-btn" data-field="cover" data-type="image" data-multiple="false">Select Cover Image</button>
+                        <span class="file-name" id="cover-name">No file selected</span>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label>Prologue Image</label>
+                        <button type="button" class="file-select-btn" data-field="prologue" data-type="image" data-multiple="false">Select Prologue Image</button>
+                        <span class="file-name" id="prologue-name">No file selected</span>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label>Chapter Images (1-6)</label>
+                        <button type="button" class="file-select-btn" data-field="chapters" data-type="image" data-multiple="true">Select Chapter Images</button>
+                        <span class="file-name" id="chapters-name">No files selected</span>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label>Epilogue Image</label>
+                        <button type="button" class="file-select-btn" data-field="epilogue" data-type="image" data-multiple="false">Select Epilogue Image</button>
+                        <span class="file-name" id="epilogue-name">No file selected</span>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label>Credits Image</label>
+                        <button type="button" class="file-select-btn" data-field="credits" data-type="image" data-multiple="false">Select Credits Image</button>
+                        <span class="file-name" id="credits-name">No file selected</span>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label>Narration Audio (Optional)</label>
+                        <button type="button" class="file-select-btn" data-field="narrationAudio" data-type="audio" data-multiple="true">Select Narration Files</button>
+                        <span class="file-name" id="narrationAudio-name">No files selected</span>
+                        <p class="helper-text">One audio file per page (cover, prologue, chapters, epilogue, credits)</p>
+                    </div>
 
-					<div class="form-group">
-						<label>Background Music (Optional)</label>
-						<button type="button" class="file-select-btn" data-field="themeAudio" data-type="audio" data-multiple="false">Select Theme Music</button>
-						<span class="file-name" id="themeAudio-name">No file selected</span>
-						<p class="helper-text">Background music that loops throughout</p>
-					</div>
+                    <div class="form-group">
+                        <label>Background Music (Optional)</label>
+                        <button type="button" class="file-select-btn" data-field="themeAudio" data-type="audio" data-multiple="false">Select Theme Music</button>
+                        <span class="file-name" id="themeAudio-name">No file selected</span>
+                        <p class="helper-text">Background music that loops throughout</p>
+                    </div>
 
-					<div class="form-group">
-						<label>Video (Optional)</label>
-						<div class="video-options">
-							<select id="video-type" class="video-type-select">
-								<option value="none">No Video</option>
-								<option value="youtube">YouTube Video</option>
-								<option value="hosted">Hosted URL</option>
-								<option value="local">Local MP4 File</option>
-							</select>
-							
-							<div id="youtube-input" class="video-input" style="display: none;">
-								<input type="text" id="youtube-id" placeholder="Enter YouTube Video ID (e.g., dQw4w9WgXcQ)" />
-							</div>
-							
-							<div id="hosted-input" class="video-input" style="display: none;">
-								<input type="text" id="hosted-url" placeholder="Enter video URL (e.g., https://example.com/video.mp4)" />
-							</div>
-							
-							<div id="local-input" class="video-input" style="display: none;">
-								<button type="button" class="file-select-btn" id="select-local-video">Select Local MP4</button>
-								<span class="file-name" id="local-video-name">No file selected</span>
-							</div>
-						</div>
-					</div>
-					
-					<button type="button" id="generate-website" class="primary-button" disabled>Generate Website</button>
-				</form>
-			</div>
+                    <div class="form-group">
+                        <label>Video (Optional)</label>
+                        <div class="video-options">
+                            <select id="video-type" class="video-type-select">
+                                <option value="none">No Video</option>
+                                <option value="youtube">YouTube Video</option>
+                                <option value="hosted">Hosted URL</option>
+                                <option value="local">Local MP4 File</option>
+                            </select>
+                            
+                            <div id="youtube-input" class="video-input" style="display: none;">
+                                <input type="text" id="youtube-id" placeholder="Enter YouTube Video ID (e.g., dQw4w9WgXcQ)" />
+                            </div>
+                            
+                            <div id="hosted-input" class="video-input" style="display: none;">
+                                <input type="text" id="hosted-url" placeholder="Enter video URL (e.g., https://example.com/video.mp4)" />
+                            </div>
+                            
+                            <div id="local-input" class="video-input" style="display: none;">
+                                <button type="button" class="file-select-btn" id="select-local-video">Select Local MP4</button>
+                                <span class="file-name" id="local-video-name">No file selected</span>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="form-actions">
+                        <button type="button" id="clear-storypack" class="secondary-button">Clear Form</button>
+                        <button type="button" id="generate-website" class="primary-button" disabled>Generate Website</button>
+                    </div>
+                </form>
+                
+                <div id="generation-status" class="generation-status" style="display: none;">
+                    <div class="spinner"></div>
+                    <p>Generating your storypack...</p>
+                </div>
+            </div>
 
             <!-- Publish Tab -->
             <div id="publish-tab" class="tab-content">

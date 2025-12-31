@@ -18,7 +18,8 @@ use commands::storypack::{
     select_image_file,
     select_image_files,
     select_audio_file,
-    select_audio_files
+    select_audio_files,
+    open_folder
 };
 
 fn main() {
@@ -37,7 +38,8 @@ fn main() {
             select_image_file,
             select_image_files,
             select_audio_file,
-            select_audio_files
+            select_audio_files,
+			open_folder
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
