@@ -3,6 +3,8 @@
 
 mod commands;
 
+use commands::cloudflare::transcribe_audio;
+
 use commands::publish::{
     select_storypack_folder,
     test_ftp_connection,
@@ -48,7 +50,8 @@ fn main() {
 			open_folder,
 			select_storypack_folder,
 			test_ftp_connection,
-			upload_to_ftp
+			upload_to_ftp,
+			transcribe_audio
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

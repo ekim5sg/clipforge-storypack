@@ -280,6 +280,9 @@ document.getElementById('concat-videos').addEventListener('click', async () => {
     }
 });
 
+// Storypack: Load saved Cloudflare Worker URL
+const savedWorkerUrl = localStorage.getItem('workerUrl') || '';
+
 // Storypack: Track selected files
 const storyspackState = {
     projectName: '',
@@ -290,8 +293,13 @@ const storyspackState = {
     credits: null,
     narrationAudio: [],
     themeAudio: null,
-    videoSource: null
+    videoSource: null,
+    workerUrl: savedWorkerUrl,
+    autoTranscribe: false
 };
+
+// Populate Worker URL
+document.getElementById('worker-url').value = storyspackState.workerUrl;
 
 // Project name validation
 const projectNameInput = document.getElementById('project-name');
@@ -304,6 +312,16 @@ function updateGenerateButton() {
     const hasCover = storyspackState.cover !== null;
     document.getElementById('generate-website').disabled = !(hasProjectName && hasCover);
 }
+
+// Worker URL handler
+document.getElementById('worker-url').addEventListener('input', (e) => {
+    storyspackState.workerUrl = e.target.value.trim();
+    localStorage.setItem('workerUrl', storyspackState.workerUrl);
+});
+
+document.getElementById('auto-transcribe').addEventListener('change', (e) => {
+    storyspackState.autoTranscribe = e.target.checked;
+});
 
 // Storypack: File selection button handlers
 document.querySelectorAll('.file-select-btn').forEach(button => {
@@ -451,6 +469,7 @@ document.getElementById('clear-storypack').addEventListener('click', () => {
     storyspackState.narrationAudio = [];
     storyspackState.themeAudio = null;
     storyspackState.videoSource = null;
+    storyspackState.autoTranscribe = false;
     
     // Reset UI
     document.querySelectorAll('.file-name').forEach(span => {
@@ -464,6 +483,7 @@ document.getElementById('clear-storypack').addEventListener('click', () => {
     localInput.style.display = 'none';
     document.getElementById('youtube-id').value = '';
     document.getElementById('hosted-url').value = '';
+    document.getElementById('auto-transcribe').checked = false;
     
     updateGenerateButton();
     
@@ -482,6 +502,17 @@ document.getElementById('generate-website').addEventListener('click', async () =
         return;
     }
     
+    // Check Worker URL if auto-transcribe is enabled
+	if (storyspackState.autoTranscribe) {
+		if (!storyspackState.workerUrl) {
+			await window.__TAURI__.core.invoke('confirm_dialog', {
+				title: 'Missing Worker URL',
+				message: 'Please enter your Cloudflare Worker URL to use auto-transcribe.'
+			});
+			return;
+		}
+	}
+    
     console.log('Generating storypack website...');
     console.log('Storypack state:', storyspackState);
     
@@ -496,6 +527,36 @@ document.getElementById('generate-website').addEventListener('click', async () =
         // Show loading
         document.getElementById('storypack-form').style.display = 'none';
         document.getElementById('generation-status').style.display = 'block';
+        const uploadMsg = document.getElementById('upload-message');
+        uploadMsg.textContent = 'Generating storypack...';
+        
+        // Transcribe audio if enabled
+        let transcriptions = [];
+        if (storyspackState.autoTranscribe && storyspackState.narrationAudio.length > 0) {
+            uploadMsg.textContent = 'Transcribing audio...';
+            
+            for (let i = 0; i < storyspackState.narrationAudio.length; i++) {
+                const audioPath = storyspackState.narrationAudio[i];
+                uploadMsg.textContent = 
+                    `Transcribing audio ${i + 1} of ${storyspackState.narrationAudio.length}...`;
+                
+                try {
+					const text = await window.__TAURI__.core.invoke('transcribe_audio', {
+						config: {
+							worker_url: storyspackState.workerUrl
+						},
+						audioPath
+					});
+                    transcriptions.push(text);
+                    console.log(`Transcribed audio ${i + 1}:`, text);
+                } catch (error) {
+                    console.error(`Failed to transcribe audio ${i + 1}:`, error);
+                    transcriptions.push(''); // Empty string if transcription fails
+                }
+            }
+        }
+        
+        uploadMsg.textContent = 'Creating storypack files...';
         
         // Prepare config
         const config = {
@@ -507,7 +568,8 @@ document.getElementById('generate-website').addEventListener('click', async () =
             credits_image: storyspackState.credits,
             narration_audio: storyspackState.narrationAudio || [],
             theme_audio: storyspackState.themeAudio,
-            video_source: storyspackState.videoSource
+            video_source: storyspackState.videoSource,
+            transcriptions: transcriptions
         };
         
         console.log('Generating with config:', config);

@@ -30,6 +30,24 @@
             <div id="storypack-tab" class="tab-content">
                 <h2>Storypack Generator</h2>
                 <form id="storypack-form" class="storypack-form">
+				
+					<!-- Cloudflare Settings Section -->
+					<div class="settings-section">
+						<h3>Cloudflare Worker Settings (Optional)</h3>
+						<div class="form-group">
+							<label>Worker URL</label>
+							<input type="text" id="worker-url" class="text-input" placeholder="https://clipforge-transcribe.YOUR-SUBDOMAIN.workers.dev" />
+							<p class="helper-text">Your deployed Cloudflare Worker URL for transcription</p>
+						</div>
+						
+						<div class="form-group">
+							<label style="display: flex; align-items: center; gap: 8px;">
+								<input type="checkbox" id="auto-transcribe" />
+								<span>Auto-transcribe narration to text</span>
+							</label>
+							<p class="helper-text">Uses your Cloudflare Worker (Whisper) to transcribe audio</p>
+						</div>
+					</div>				
                     
                     <div class="form-group">
                         <label>Project Name *</label>

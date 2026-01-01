@@ -13,6 +13,7 @@ pub struct StoryspackConfig {
     pub narration_audio: Vec<String>,
     pub theme_audio: Option<String>,
     pub video_source: Option<VideoSource>,
+	pub transcriptions: Vec<String>,
 }
 
 #[derive(serde::Serialize, serde::Deserialize, Debug, Clone)]
@@ -248,6 +249,7 @@ fn generate_css(project_path: &Path) -> Result<(), String> {
 fn create_html_template(config: &StoryspackConfig) -> String {
     let mut pages = Vec::new();
     let mut audio_index = 0;
+    let mut transcription_index = 0;
     
     // Helper function to get file extension
     fn get_extension(path: &str) -> String {
@@ -256,6 +258,15 @@ fn create_html_template(config: &StoryspackConfig) -> String {
             .and_then(|e| e.to_str())
             .unwrap_or("jpg")
             .to_string()
+    }
+    
+    // Helper to escape HTML
+    fn escape_html(text: &str) -> String {
+        text.replace('&', "&amp;")
+            .replace('<', "&lt;")
+            .replace('>', "&gt;")
+            .replace('"', "&quot;")
+            .replace('\'', "&#39;")
     }
     
     // Helper to get audio element for current page
@@ -270,43 +281,63 @@ fn create_html_template(config: &StoryspackConfig) -> String {
         }
     };
     
+    // Helper to get transcription text for current page
+    let get_transcription = |idx: &mut usize| -> String {
+        if *idx < config.transcriptions.len() && !config.transcriptions[*idx].is_empty() {
+            let text = &config.transcriptions[*idx];
+            *idx += 1;
+            format!(r#"<p class="page-text">{}</p>"#, escape_html(text))
+        } else {
+            if *idx < config.transcriptions.len() {
+                *idx += 1;
+            }
+            String::new()
+        }
+    };
+    
     // Cover page
     if let Some(cover) = &config.cover_image {
         let ext = get_extension(cover);
         let audio = get_audio(&mut audio_index);
+        let transcription = get_transcription(&mut transcription_index);
         pages.push(format!(r#"
         <div class="page" data-page="cover">
             <div class="page-content">
                 <img src="assets/images/cover.{}" alt="Cover" class="page-image" />
                 {}
+                {}
             </div>
-        </div>"#, ext, audio));
+        </div>"#, ext, transcription, audio));
     }
     
     // Prologue page
     if let Some(prologue) = &config.prologue_image {
         let ext = get_extension(prologue);
         let audio = get_audio(&mut audio_index);
+        let transcription = get_transcription(&mut transcription_index);
         pages.push(format!(r#"
         <div class="page" data-page="prologue">
             <div class="page-content">
                 <img src="assets/images/prologue.{}" alt="Prologue" class="page-image" />
                 {}
+                {}
             </div>
-        </div>"#, ext, audio));
+        </div>"#, ext, transcription, audio));
     }
     
     // Chapter pages
     for (i, chapter) in config.chapter_images.iter().enumerate() {
         let ext = get_extension(chapter);
         let audio = get_audio(&mut audio_index);
+        let transcription = get_transcription(&mut transcription_index);
         let chapter_html = format!(r#"
         <div class="page" data-page="chapter{}">
             <div class="page-content">
                 <img src="assets/images/chapter{}.{}" alt="Chapter {}" class="page-image" />
                 {}
+                {}
             </div>
-        </div>"#, i + 1, i + 1, ext, i + 1, audio);
+        </div>"#, i + 1, i + 1, ext, i + 1, transcription, audio);
         pages.push(chapter_html);
     }
     
@@ -314,26 +345,30 @@ fn create_html_template(config: &StoryspackConfig) -> String {
     if let Some(epilogue) = &config.epilogue_image {
         let ext = get_extension(epilogue);
         let audio = get_audio(&mut audio_index);
+        let transcription = get_transcription(&mut transcription_index);
         pages.push(format!(r#"
         <div class="page" data-page="epilogue">
             <div class="page-content">
                 <img src="assets/images/epilogue.{}" alt="Epilogue" class="page-image" />
                 {}
+                {}
             </div>
-        </div>"#, ext, audio));
+        </div>"#, ext, transcription, audio));
     }
     
     // Credits page
     if let Some(credits) = &config.credits_image {
         let ext = get_extension(credits);
         let audio = get_audio(&mut audio_index);
+        let transcription = get_transcription(&mut transcription_index);
         pages.push(format!(r#"
         <div class="page" data-page="credits">
             <div class="page-content">
                 <img src="assets/images/credits.{}" alt="Credits" class="page-image" />
                 {}
+                {}
             </div>
-        </div>"#, ext, audio));
+        </div>"#, ext, transcription, audio));
     }
     
     let pages_html = pages.join("\n");
@@ -416,7 +451,7 @@ fn create_html_template(config: &StoryspackConfig) -> String {
         </div>
     </div>
     
-	<script>
+    <script>
         let currentPage = 0;
         const pages = document.querySelectorAll('.page');
         const totalPages = pages.length;
@@ -653,13 +688,30 @@ body {
     align-items: center;
     padding: 20px;
     flex-direction: column;
+    gap: 20px;
 }
 
 .page-image {
     max-width: 100%;
-    max-height: 600px;
+    max-height: 450px;
     object-fit: contain;
     border-radius: 4px;
+}
+
+.page-text {
+    max-width: 700px;
+    width: 100%;
+    padding: 25px 30px;
+    background: white;
+    border-radius: 8px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    font-size: 17px;
+    line-height: 1.8;
+    color: #333;
+    text-align: left;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+    font-family: Georgia, 'Times New Roman', serif;
 }
 
 .page-audio {
@@ -745,7 +797,12 @@ body {
     }
     
     .page-image {
-        max-height: 400px;
+        max-height: 300px;
+    }
+    
+    .page-text {
+        font-size: 15px;
+        padding: 20px 25px;
     }
     
     .navigation {
