@@ -1,7 +1,8 @@
 use serde::Deserialize;
 use std::fs;
+use crate::commands::audio_compress;
 
-// Simplified config - only need worker URL now
+// Worker config
 #[derive(serde::Serialize, serde::Deserialize, Debug)]
 pub struct CloudflareConfig {
     pub worker_url: String,
@@ -11,13 +12,19 @@ pub struct CloudflareConfig {
 pub async fn transcribe_audio(
     config: CloudflareConfig,
     audio_path: String,
-) -> Result<String, String> {
+) -> Result<Vec<String>, String> {
     println!("Transcribing: {}", audio_path);
     println!("Using worker: {}", config.worker_url);
     
-    // Read audio file
-    let audio_data = fs::read(&audio_path)
-        .map_err(|e| format!("Failed to read audio file: {}", e))?;
+    // Compress audio first for better API compatibility
+    let compressed_path = audio_compress::compress_for_transcription(&audio_path)?;
+    println!("Compressed audio: {}", compressed_path);
+    
+    // Read compressed audio file
+    let audio_data = fs::read(&compressed_path)
+        .map_err(|e| format!("Failed to read compressed audio: {}", e))?;
+    
+    println!("Compressed size: {} bytes", audio_data.len());
     
     // Call the Worker
     let client = reqwest::Client::new();
@@ -29,6 +36,9 @@ pub async fn transcribe_audio(
         .await
         .map_err(|e| format!("Request failed: {}", e))?;
     
+    // Clean up compressed file
+    let _ = fs::remove_file(&compressed_path);
+    
     if !response.status().is_success() {
         let status = response.status();
         let body = response.text().await.unwrap_or_default();
@@ -39,6 +49,7 @@ pub async fn transcribe_audio(
     struct WorkerResponse {
         success: bool,
         text: Option<String>,
+        segments: Option<Vec<String>>,
         error: Option<String>,
     }
     
@@ -47,10 +58,22 @@ pub async fn transcribe_audio(
         .await
         .map_err(|e| format!("Failed to parse response: {}", e))?;
     
-    println!("Worker response: success={}, text={:?}", result.success, result.text);
+    println!("Worker response: success={}", result.success);
     
     if result.success {
-        result.text.ok_or_else(|| "No transcription text".to_string())
+        if let Some(segments) = result.segments {
+            if !segments.is_empty() {
+                println!("Received {} segments from worker", segments.len());
+                return Ok(segments);
+            }
+        }
+        
+        if let Some(text) = result.text {
+            println!("No segments, using full text");
+            return Ok(vec![text]);
+        }
+        
+        Ok(vec![])
     } else {
         Err(result.error.unwrap_or_else(|| "Unknown error".to_string()))
     }

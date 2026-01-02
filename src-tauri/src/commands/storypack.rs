@@ -13,7 +13,7 @@ pub struct StoryspackConfig {
     pub narration_audio: Vec<String>,
     pub theme_audio: Option<String>,
     pub video_source: Option<VideoSource>,
-	pub transcriptions: Vec<String>,
+    pub transcriptions: Vec<String>,
 }
 
 #[derive(serde::Serialize, serde::Deserialize, Debug, Clone)]
@@ -249,7 +249,6 @@ fn generate_css(project_path: &Path) -> Result<(), String> {
 fn create_html_template(config: &StoryspackConfig) -> String {
     let mut pages = Vec::new();
     let mut audio_index = 0;
-    let mut transcription_index = 0;
     
     // Helper function to get file extension
     fn get_extension(path: &str) -> String {
@@ -260,14 +259,38 @@ fn create_html_template(config: &StoryspackConfig) -> String {
             .to_string()
     }
     
-    // Helper to escape HTML
+    // Helper to escape HTML but preserve <strong> tags
     fn escape_html(text: &str) -> String {
-        text.replace('&', "&amp;")
+        // First escape everything
+        let escaped = text.replace('&', "&amp;")
             .replace('<', "&lt;")
             .replace('>', "&gt;")
             .replace('"', "&quot;")
-            .replace('\'', "&#39;")
+            .replace('\'', "&#39;");
+        
+        // Then unescape <strong> and </strong> tags
+        escaped
+            .replace("&lt;strong&gt;", "<strong>")
+            .replace("&lt;/strong&gt;", "</strong>")
     }
+    
+	// Helper to find matching transcription segment by page type
+	fn find_segment(transcriptions: &[String], page_type: &str) -> Option<String> {
+		for segment in transcriptions {
+			let segment_lower = segment.to_lowercase();
+			let page_type_lower = page_type.to_lowercase();
+			
+			// Check if segment contains the page type anywhere in the text
+			// This handles both formatted "<strong>Prologue" and unformatted "Prologue"
+			if segment_lower.contains(&format!("<strong>{}", page_type_lower)) ||
+			   segment_lower.contains(&format!("<strong>{}:", page_type_lower)) ||
+			   segment_lower.contains(&format!(" {}", page_type_lower)) ||
+			   segment_lower.contains(&format!(" {}.", page_type_lower)) {
+				return Some(segment.clone());
+			}
+		}
+		None
+	}
     
     // Helper to get audio element for current page
     let get_audio = |idx: &mut usize| -> String {
@@ -281,25 +304,20 @@ fn create_html_template(config: &StoryspackConfig) -> String {
         }
     };
     
-    // Helper to get transcription text for current page
-    let get_transcription = |idx: &mut usize| -> String {
-        if *idx < config.transcriptions.len() && !config.transcriptions[*idx].is_empty() {
-            let text = &config.transcriptions[*idx];
-            *idx += 1;
-            format!(r#"<p class="page-text">{}</p>"#, escape_html(text))
+    // Helper to get transcription text for a specific page type
+    let get_transcription_for_page = |page_type: &str| -> String {
+        if let Some(segment) = find_segment(&config.transcriptions, page_type) {
+            format!(r#"<p class="page-text">{}</p>"#, escape_html(&segment))
         } else {
-            if *idx < config.transcriptions.len() {
-                *idx += 1;
-            }
             String::new()
         }
     };
     
-    // Cover page
+    // Cover page - typically no text
     if let Some(cover) = &config.cover_image {
         let ext = get_extension(cover);
         let audio = get_audio(&mut audio_index);
-        let transcription = get_transcription(&mut transcription_index);
+        let transcription = get_transcription_for_page("cover");
         pages.push(format!(r#"
         <div class="page" data-page="cover">
             <div class="page-content">
@@ -314,7 +332,7 @@ fn create_html_template(config: &StoryspackConfig) -> String {
     if let Some(prologue) = &config.prologue_image {
         let ext = get_extension(prologue);
         let audio = get_audio(&mut audio_index);
-        let transcription = get_transcription(&mut transcription_index);
+        let transcription = get_transcription_for_page("prologue");
         pages.push(format!(r#"
         <div class="page" data-page="prologue">
             <div class="page-content">
@@ -329,7 +347,8 @@ fn create_html_template(config: &StoryspackConfig) -> String {
     for (i, chapter) in config.chapter_images.iter().enumerate() {
         let ext = get_extension(chapter);
         let audio = get_audio(&mut audio_index);
-        let transcription = get_transcription(&mut transcription_index);
+        let chapter_num = i + 1;
+        let transcription = get_transcription_for_page(&format!("chapter {}", chapter_num));
         let chapter_html = format!(r#"
         <div class="page" data-page="chapter{}">
             <div class="page-content">
@@ -337,7 +356,7 @@ fn create_html_template(config: &StoryspackConfig) -> String {
                 {}
                 {}
             </div>
-        </div>"#, i + 1, i + 1, ext, i + 1, transcription, audio);
+        </div>"#, chapter_num, chapter_num, ext, chapter_num, transcription, audio);
         pages.push(chapter_html);
     }
     
@@ -345,7 +364,7 @@ fn create_html_template(config: &StoryspackConfig) -> String {
     if let Some(epilogue) = &config.epilogue_image {
         let ext = get_extension(epilogue);
         let audio = get_audio(&mut audio_index);
-        let transcription = get_transcription(&mut transcription_index);
+        let transcription = get_transcription_for_page("epilogue");
         pages.push(format!(r#"
         <div class="page" data-page="epilogue">
             <div class="page-content">
@@ -356,11 +375,11 @@ fn create_html_template(config: &StoryspackConfig) -> String {
         </div>"#, ext, transcription, audio));
     }
     
-    // Credits page
+    // Credits page - typically no text
     if let Some(credits) = &config.credits_image {
         let ext = get_extension(credits);
         let audio = get_audio(&mut audio_index);
-        let transcription = get_transcription(&mut transcription_index);
+        let transcription = get_transcription_for_page("credits");
         pages.push(format!(r#"
         <div class="page" data-page="credits">
             <div class="page-content">
@@ -712,6 +731,14 @@ body {
     white-space: pre-wrap;
     word-wrap: break-word;
     font-family: Georgia, 'Times New Roman', serif;
+}
+
+.page-text strong {
+    display: block;
+    font-size: 19px;
+    color: #667eea;
+    margin-bottom: 15px;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
 }
 
 .page-audio {

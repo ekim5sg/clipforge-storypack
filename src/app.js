@@ -490,6 +490,10 @@ document.getElementById('clear-storypack').addEventListener('click', () => {
     console.log('Storypack form cleared');
 });
 
+// Global state for transcription review
+let reviewTranscriptions = [];
+let pendingOutputFolder = null;
+
 // Storypack: Generate website button
 document.getElementById('generate-website').addEventListener('click', async () => {
     const projectName = projectNameInput.value.trim();
@@ -503,15 +507,15 @@ document.getElementById('generate-website').addEventListener('click', async () =
     }
     
     // Check Worker URL if auto-transcribe is enabled
-	if (storyspackState.autoTranscribe) {
-		if (!storyspackState.workerUrl) {
-			await window.__TAURI__.core.invoke('confirm_dialog', {
-				title: 'Missing Worker URL',
-				message: 'Please enter your Cloudflare Worker URL to use auto-transcribe.'
-			});
-			return;
-		}
-	}
+    if (storyspackState.autoTranscribe) {
+        if (!storyspackState.workerUrl) {
+            await window.__TAURI__.core.invoke('confirm_dialog', {
+                title: 'Missing Worker URL',
+                message: 'Please enter your Cloudflare Worker URL to use auto-transcribe.'
+            });
+            return;
+        }
+    }
     
     console.log('Generating storypack website...');
     console.log('Storypack state:', storyspackState);
@@ -523,6 +527,9 @@ document.getElementById('generate-website').addEventListener('click', async () =
             console.log('User cancelled folder selection');
             return;
         }
+        
+        // Store for later use
+        pendingOutputFolder = outputFolder;
         
         // Show loading
         document.getElementById('storypack-form').style.display = 'none';
@@ -541,22 +548,54 @@ document.getElementById('generate-website').addEventListener('click', async () =
                     `Transcribing audio ${i + 1} of ${storyspackState.narrationAudio.length}...`;
                 
                 try {
-					const text = await window.__TAURI__.core.invoke('transcribe_audio', {
-						config: {
-							worker_url: storyspackState.workerUrl
-						},
-						audioPath
-					});
-                    transcriptions.push(text);
-                    console.log(`Transcribed audio ${i + 1}:`, text);
+                    const segments = await window.__TAURI__.core.invoke('transcribe_audio', {
+                        config: {
+                            worker_url: storyspackState.workerUrl
+                        },
+                        audioPath
+                    });
+                    
+                    console.log(`Transcribed audio ${i + 1}:`, segments.length, 'segments');
+                    transcriptions.push(...segments);
                 } catch (error) {
                     console.error(`Failed to transcribe audio ${i + 1}:`, error);
-                    transcriptions.push(''); // Empty string if transcription fails
                 }
             }
+            
+            // Hide loading, show review modal
+            document.getElementById('generation-status').style.display = 'none';
+            document.getElementById('storypack-form').style.display = 'block';
+            
+            // Show transcription review
+            showTranscriptionReview(transcriptions);
+            return; // Wait for user to confirm
         }
         
-        uploadMsg.textContent = 'Creating storypack files...';
+        // If no transcription, generate directly
+        await actuallyGenerateStorypack(transcriptions, outputFolder);
+        
+    } catch (error) {
+        console.error('Error generating storypack:', error);
+        
+        // Hide loading
+        document.getElementById('generation-status').style.display = 'none';
+        document.getElementById('storypack-form').style.display = 'block';
+        
+        await window.__TAURI__.core.invoke('confirm_dialog', {
+            title: 'Error',
+            message: `Failed to generate storypack:\n${error}`
+        });
+    }
+});
+
+async function actuallyGenerateStorypack(transcriptions, outputFolder) {
+    const projectName = projectNameInput.value.trim();
+    
+    try {
+        // Show loading
+        document.getElementById('storypack-form').style.display = 'none';
+        document.getElementById('generation-status').style.display = 'block';
+        document.getElementById('upload-message').textContent = 'Creating storypack files...';
         
         // Prepare config
         const config = {
@@ -592,7 +631,6 @@ document.getElementById('generate-website').addEventListener('click', async () =
         });
         
         if (shouldOpen) {
-            // Open folder in file explorer
             await window.__TAURI__.core.invoke('open_folder', { path: result });
         }
         
@@ -608,7 +646,177 @@ document.getElementById('generate-website').addEventListener('click', async () =
             message: `Failed to generate storypack:\n${error}`
         });
     }
-});
+}
+
+// Transcription Review Modal Functions
+function showTranscriptionReview(transcriptions) {
+    // Parse transcriptions into structured format
+    reviewTranscriptions = transcriptions.map((text, index) => {
+        // Extract title from <strong> tags if present
+        const strongMatch = text.match(/<strong>(.*?)<\/strong>/);
+        const title = strongMatch ? strongMatch[1] : `Segment ${index + 1}`;
+        
+        // Remove <strong> tags and extra whitespace from content
+        const content = text
+            .replace(/<strong>.*?<\/strong>/g, '')
+            .replace(/\n\n/g, '\n')
+            .trim();
+        
+        // Determine type from title
+        let type = 'chapter';
+        if (title.toLowerCase().includes('prologue')) type = 'prologue';
+        else if (title.toLowerCase().includes('epilogue')) type = 'epilogue';
+        else if (title.toLowerCase().includes('credits')) type = 'credits';
+        
+        return { title, content, type };
+    });
+
+    renderTranscriptionReview();
+}
+
+function renderTranscriptionReview() {
+    // Create modal HTML
+    const modalHTML = `
+        <div id="transcription-modal" class="modal-overlay">
+            <div class="modal-content">
+                <h2>📝 Review Transcriptions</h2>
+                <p class="modal-subtitle">Edit chapter titles and content before generating your storypack</p>
+                
+                <div id="transcription-list" class="transcription-list">
+                    ${reviewTranscriptions.map((seg, index) => `
+                        <div class="transcription-segment" data-index="${index}">
+                            <div class="segment-header">
+                                <div class="segment-order-buttons">
+                                    <button class="order-btn" onclick="moveSegmentUp(${index})" ${index === 0 ? 'disabled' : ''} title="Move up">▲</button>
+                                    <button class="order-btn" onclick="moveSegmentDown(${index})" ${index === reviewTranscriptions.length - 1 ? 'disabled' : ''} title="Move down">▼</button>
+                                </div>
+                                <input 
+                                    type="text" 
+                                    class="segment-title-input" 
+                                    value="${escapeHtml(seg.title)}"
+                                    onchange="updateSegmentTitle(${index}, this.value)"
+                                />
+                                <button class="delete-segment-btn" onclick="deleteSegment(${index})" title="Delete">🗑️</button>
+                            </div>
+                            <textarea 
+                                class="segment-content-input" 
+                                rows="4"
+                                onchange="updateSegmentContent(${index}, this.value)"
+                            >${escapeHtml(seg.content)}</textarea>
+                        </div>
+                    `).join('')}
+                </div>
+                
+                <div class="modal-actions">
+                    <button class="button secondary" onclick="addNewSegment()">+ Add Chapter</button>
+                    <div class="spacer"></div>
+                    <button class="button secondary" onclick="closeTranscriptionReview()">Cancel</button>
+                    <button class="button primary" onclick="confirmTranscriptions()">Generate Storypack</button>
+                </div>
+            </div>
+        </div>
+    `;
+
+    // Add to page
+    document.body.insertAdjacentHTML('beforeend', modalHTML);
+}
+
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
+function updateSegmentTitle(index, value) {
+    reviewTranscriptions[index].title = value;
+}
+
+function updateSegmentContent(index, value) {
+    reviewTranscriptions[index].content = value;
+}
+
+function deleteSegment(index) {
+    if (confirm('Delete this segment?')) {
+        reviewTranscriptions.splice(index, 1);
+        reRenderTranscriptionList();
+    }
+}
+
+function moveSegmentUp(index) {
+    if (index === 0) return;
+    
+    // Swap with previous
+    [reviewTranscriptions[index], reviewTranscriptions[index - 1]] = 
+        [reviewTranscriptions[index - 1], reviewTranscriptions[index]];
+    
+    reRenderTranscriptionList();
+}
+
+function moveSegmentDown(index) {
+    if (index === reviewTranscriptions.length - 1) return;
+    
+    // Swap with next
+    [reviewTranscriptions[index], reviewTranscriptions[index + 1]] = 
+        [reviewTranscriptions[index + 1], reviewTranscriptions[index]];
+    
+    reRenderTranscriptionList();
+}
+
+function reRenderTranscriptionList() {
+    const list = document.getElementById('transcription-list');
+    list.innerHTML = reviewTranscriptions.map((seg, i) => `
+        <div class="transcription-segment" data-index="${i}">
+            <div class="segment-header">
+                <div class="segment-order-buttons">
+                    <button class="order-btn" onclick="moveSegmentUp(${i})" ${i === 0 ? 'disabled' : ''} title="Move up">▲</button>
+                    <button class="order-btn" onclick="moveSegmentDown(${i})" ${i === reviewTranscriptions.length - 1 ? 'disabled' : ''} title="Move down">▼</button>
+                </div>
+                <input 
+                    type="text" 
+                    class="segment-title-input" 
+                    value="${escapeHtml(seg.title)}"
+                    onchange="updateSegmentTitle(${i}, this.value)"
+                />
+                <button class="delete-segment-btn" onclick="deleteSegment(${i})" title="Delete">🗑️</button>
+            </div>
+            <textarea 
+                class="segment-content-input" 
+                rows="4"
+                onchange="updateSegmentContent(${i}, this.value)"
+            >${escapeHtml(seg.content)}</textarea>
+        </div>
+    `).join('');
+}
+
+function addNewSegment() {
+    const chapterNum = reviewTranscriptions.filter(s => s.type === 'chapter').length + 1;
+    reviewTranscriptions.push({
+        title: `Chapter ${chapterNum}. New Chapter`,
+        content: 'Enter your chapter text here...',
+        type: 'chapter'
+    });
+    
+    reRenderTranscriptionList();
+}
+
+function closeTranscriptionReview() {
+    const modal = document.getElementById('transcription-modal');
+    if (modal) modal.remove();
+    pendingOutputFolder = null;
+}
+
+async function confirmTranscriptions() {
+    // Convert back to format expected by backend
+    const formattedTranscriptions = reviewTranscriptions.map(seg => {
+        return `<strong>${seg.title}</strong>\n\n${seg.content}`;
+    });
+    
+    // Save outputFolder before closing (closeTranscriptionReview sets it to null)
+    const outputFolder = pendingOutputFolder;
+    
+    closeTranscriptionReview();
+    await actuallyGenerateStorypack(formattedTranscriptions, outputFolder);
+}
 
 // Publish: Load saved credentials or use defaults
 const savedFtpConfig = localStorage.getItem('ftpConfig');
